@@ -548,3 +548,116 @@ func TestBuilderConvenienceFunctionsWithFormat(t *testing.T) {
 		t.Errorf("Format() = %v, want %v", formatted, expected)
 	}
 }
+
+// Sort Builder Tests
+
+func TestSort(t *testing.T) {
+	sort := Sort("created_at", SortDesc)
+
+	if len(sort.fields) != 1 {
+		t.Errorf("Sort() fields length = %d, want 1", len(sort.fields))
+	}
+
+	field := sort.fields[0]
+	if field.Name != "created_at" {
+		t.Errorf("Sort() field name = %s, want created_at", field.Name)
+	}
+	if field.Direction != SortDesc {
+		t.Errorf("Sort() direction = %s, want %s", field.Direction, SortDesc)
+	}
+}
+
+func TestSortBuilder_ThenBy(t *testing.T) {
+	sort := Sort("created_at", SortDesc).ThenBy("name", SortAsc)
+
+	if len(sort.fields) != 2 {
+		t.Errorf("ThenBy() fields length = %d, want 2", len(sort.fields))
+	}
+
+	if sort.fields[0].Name != "created_at" {
+		t.Errorf("ThenBy() first field name = %s, want created_at", sort.fields[0].Name)
+	}
+	if sort.fields[1].Name != "name" {
+		t.Errorf("ThenBy() second field name = %s, want name", sort.fields[1].Name)
+	}
+}
+
+func TestSortBuilder_NullsLast(t *testing.T) {
+	sort := Sort("email", SortAsc).NullsLast()
+
+	if len(sort.fields) != 1 {
+		t.Fatalf("NullsLast() fields length = %d, want 1", len(sort.fields))
+	}
+
+	if !sort.fields[0].NullsLast {
+		t.Error("NullsLast() should set NullsLast flag to true")
+	}
+}
+
+func TestSortBuilder_NullsLastOnMultipleFields(t *testing.T) {
+	sort := Sort("created_at", SortDesc).
+		ThenBy("email", SortAsc).NullsLast().
+		ThenBy("name", SortAsc)
+
+	if len(sort.fields) != 3 {
+		t.Fatalf("fields length = %d, want 3", len(sort.fields))
+	}
+
+	// Only the email field should have NullsLast set
+	if sort.fields[0].NullsLast {
+		t.Error("created_at should not have NullsLast set")
+	}
+	if !sort.fields[1].NullsLast {
+		t.Error("email should have NullsLast set")
+	}
+	if sort.fields[2].NullsLast {
+		t.Error("name should not have NullsLast set")
+	}
+}
+
+func TestSortBuilder_Build(t *testing.T) {
+	builder := Sort("created_at", SortDesc).ThenBy("name", SortAsc)
+
+	if len(builder.fields) != 2 {
+		t.Errorf("Build() fields length = %d, want 2", len(builder.fields))
+	}
+
+	if builder.fields[0].Name != "created_at" {
+		t.Errorf("Build() first field name = %s, want created_at", builder.fields[0].Name)
+	}
+	if builder.fields[1].Name != "name" {
+		t.Errorf("Build() second field name = %s, want name", builder.fields[1].Name)
+	}
+}
+
+func TestSortBuilder_ChainedCalls(t *testing.T) {
+	// Test that all methods return SortBuilder for chaining
+	sort := Sort("a", SortAsc).
+		ThenBy("b", SortDesc).
+		NullsLast().
+		ThenBy("c", SortAsc)
+
+	if len(sort.fields) != 3 {
+		t.Errorf("Chained calls resulted in %d fields, want 3", len(sort.fields))
+	}
+
+	// Verify the chain worked correctly
+	if sort.fields[0].Name != "a" || sort.fields[0].Direction != SortAsc {
+		t.Error("First field incorrect")
+	}
+	if sort.fields[1].Name != "b" || sort.fields[1].Direction != SortDesc || !sort.fields[1].NullsLast {
+		t.Error("Second field incorrect")
+	}
+	if sort.fields[2].Name != "c" || sort.fields[2].Direction != SortAsc {
+		t.Error("Third field incorrect")
+	}
+}
+
+func TestSortDirection_Constants(t *testing.T) {
+	if SortAsc != "asc" {
+		t.Errorf("SortAsc = %s, want asc", SortAsc)
+	}
+	if SortDesc != "desc" {
+		t.Errorf("SortDesc = %s, want desc", SortDesc)
+	}
+}

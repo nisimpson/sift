@@ -17,7 +17,7 @@ const (
 
 // SortExpression represents a sorting expression in the AST.
 type SortExpression interface {
-	accept(ctx context.Context, evaluator *SortEvaluator) error
+	accept(ctx context.Context, evaluator *Evaluator) error
 }
 
 // SortField represents a single field to sort by.
@@ -28,7 +28,7 @@ type SortField struct {
 }
 
 // accept implements the visitor pattern for SortField.
-func (s *SortField) accept(ctx context.Context, evaluator *SortEvaluator) error {
+func (s *SortField) accept(ctx context.Context, evaluator *Evaluator) error {
 	if evaluator.SortFieldEvaluator == nil {
 		return fmt.Errorf("%w: SortField not supported", ErrUnsupported)
 	}
@@ -41,7 +41,7 @@ type SortList struct {
 }
 
 // accept implements the visitor pattern for SortList.
-func (s *SortList) accept(ctx context.Context, evaluator *SortEvaluator) error {
+func (s *SortList) accept(ctx context.Context, evaluator *Evaluator) error {
 	if evaluator.SortListEvaluator == nil {
 		return fmt.Errorf("%w: SortList not supported", ErrUnsupported)
 	}
@@ -58,19 +58,6 @@ type SortListEvaluator interface {
 	EvaluateSortList(ctx context.Context, list *SortList) error
 }
 
-// SortEvaluator holds the evaluator interfaces for sort expressions.
-// Adapters populate only the interfaces they support.
-type SortEvaluator struct {
-	SortFieldEvaluator
-	SortListEvaluator
-}
-
-// SortAdapter is the interface that adapters must implement to support sorting.
-type SortAdapter interface {
-	// SortEvaluator returns a sort evaluator configured for the adapter.
-	SortEvaluator(ctx context.Context) *SortEvaluator
-}
-
 // SortThru traverses a sort expression using the visitor pattern.
 // It calls the appropriate evaluator methods on the adapter.
 //
@@ -79,8 +66,8 @@ type SortAdapter interface {
 //	sort := sift.Sort("created_at", sift.SortDesc).ThenBy("name", sift.SortAsc)
 //	adapter := sql.NewAdapter()
 //	err := sift.SortThru(ctx, adapter, sort)
-func SortThru(ctx context.Context, adapter SortAdapter, expr SortExpression) error {
-	evaluator := adapter.SortEvaluator(ctx)
+func SortThru(ctx context.Context, adapter Adapter, expr SortExpression) error {
+	evaluator := adapter.Evaluator(ctx)
 	return expr.accept(ctx, evaluator)
 }
 
@@ -134,6 +121,6 @@ func (b *SortBuilder) Build() *SortList {
 
 // accept implements SortExpression for SortBuilder.
 // This allows SortBuilder to be used directly without calling Build().
-func (b *SortBuilder) accept(ctx context.Context, evaluator *SortEvaluator) error {
+func (b *SortBuilder) accept(ctx context.Context, evaluator *Evaluator) error {
 	return b.Build().accept(ctx, evaluator)
 }

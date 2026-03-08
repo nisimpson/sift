@@ -22,6 +22,8 @@ type Evaluator struct {
 	OrEvaluator
 	NotEvaluator
 	CustomEvaluator
+	SortFieldEvaluator
+	SortListEvaluator
 }
 
 // Adapter provides the bridge between the sift filter AST and backend-specific implementations.

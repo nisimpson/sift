@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// mockSortAdapter is a test adapter that implements SortAdapter.
+// mockSortAdapter is a test adapter that implements Adapter with sort support.
 type mockSortAdapter struct {
 	fieldCalled bool
 	listCalled  bool
@@ -17,8 +17,8 @@ func newMockSortAdapter() *mockSortAdapter {
 	return &mockSortAdapter{}
 }
 
-func (m *mockSortAdapter) SortEvaluator(ctx context.Context) *SortEvaluator {
-	return &SortEvaluator{
+func (m *mockSortAdapter) Evaluator(ctx context.Context) *Evaluator {
+	return &Evaluator{
 		SortFieldEvaluator: m,
 		SortListEvaluator:  m,
 	}
@@ -179,12 +179,22 @@ func TestSortThru_WithSortField(t *testing.T) {
 }
 
 func TestSortThru_UnsupportedEvaluator(t *testing.T) {
-	// Adapter that doesn't support sorting
-	type unsupportedAdapter struct{}
+	adapter := &unsupportedSortAdapter{}
+	sort := Sort("created_at", SortDesc)
 	
-	// This test just documents that unsupportedAdapter doesn't implement SortAdapter
-	// which provides compile-time safety
-	_ = &unsupportedAdapter{}
+	err := SortThru(context.Background(), adapter, sort)
+	if err == nil {
+		t.Error("SortThru() should return error when sort evaluators are not populated")
+	}
+}
+
+// unsupportedSortAdapter doesn't support sorting
+type unsupportedSortAdapter struct{}
+
+func (u *unsupportedSortAdapter) Evaluator(ctx context.Context) *Evaluator {
+	return &Evaluator{
+		// No sort evaluators populated
+	}
 }
 
 func TestSortThru_PartialSupport(t *testing.T) {
@@ -209,8 +219,8 @@ func TestSortThru_PartialSupport(t *testing.T) {
 // partialSortAdapter only supports SortList, not SortField
 type partialSortAdapter struct{}
 
-func (p *partialSortAdapter) SortEvaluator(ctx context.Context) *SortEvaluator {
-	return &SortEvaluator{
+func (p *partialSortAdapter) Evaluator(ctx context.Context) *Evaluator {
+	return &Evaluator{
 		SortListEvaluator: p,
 	}
 }

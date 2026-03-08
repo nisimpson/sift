@@ -12,7 +12,8 @@ import (
 // Expected format: filter[q]=and(p1,p2)&filter[p1]=eq(status,active)&filter[p2]=gt(age,18)
 //
 // The main query is in filter[q] and references parameters defined in filter[p1], filter[p2], etc.
-func Parse(query url.Values) (sift.Expression, error) {
+// If registry is nil, no custom expressions are supported.
+func Parse(query url.Values, registry *sift.Registry) (sift.Expression, error) {
 	// Extract filter parameters
 	filterParams := make(map[string]string)
 	for key, vals := range query {
@@ -32,7 +33,7 @@ func Parse(query url.Values) (sift.Expression, error) {
 
 	// Resolve parameter references and parse
 	resolved := resolveParameters(mainQuery, filterParams)
-	return sift.Parse(resolved)
+	return sift.Parse(resolved, registry)
 }
 
 // resolveParameters recursively replaces parameter references with their definitions.
@@ -90,14 +91,16 @@ func isIdentifierChar(ch byte) bool {
 
 // Format formats a sift expression into JSON:API query parameters.
 // It extracts all leaf conditions as parameters and builds a main query that references them.
+// If registry is nil, no custom expressions are supported.
 //
 // Example:
 //
 //	Input: and(eq(status,active),gt(age,18))
 //	Output: filter[q]=and(p1,p2)&filter[p1]=eq(status,active)&filter[p2]=gt(age,18)
-func Format(expr sift.Expression) (url.Values, error) {
+func Format(expr sift.Expression, registry *sift.Registry) (url.Values, error) {
 	extractor := &paramExtractor{
-		params: make(map[string]string),
+		params:   make(map[string]string),
+		registry: registry,
 	}
 
 	query, err := extractor.extract(expr)
@@ -119,6 +122,7 @@ func Format(expr sift.Expression) (url.Values, error) {
 type paramExtractor struct {
 	params     map[string]string
 	paramCount int
+	registry   *sift.Registry
 }
 
 // extract recursively processes an expression, extracting parameters.
@@ -134,7 +138,7 @@ func (e *paramExtractor) extract(expr sift.Expression) (string, error) {
 		return e.extractNot(n)
 	default:
 		// For custom expressions or other types, format them and create a parameter
-		formatted, err := sift.Format(expr)
+		formatted, err := sift.Format(expr, e.registry)
 		if err != nil {
 			return "", err
 		}
@@ -145,7 +149,7 @@ func (e *paramExtractor) extract(expr sift.Expression) (string, error) {
 // extractCondition creates a parameter for a condition.
 func (e *paramExtractor) extractCondition(cond *sift.Condition) (string, error) {
 	// Format the condition using sift.Format
-	formatted, err := sift.Format(cond)
+	formatted, err := sift.Format(cond, e.registry)
 	if err != nil {
 		return "", err
 	}

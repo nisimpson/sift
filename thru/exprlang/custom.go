@@ -92,9 +92,19 @@ func unescapeExpression(s string) string {
 	return s
 }
 
-// init registers the expr-lang custom expression formatter.
-func init() {
-	sift.RegisterCustomExpression(&CustomExpression{}, Formatter{})
+// NewRegistry creates a sift registry with expr-lang custom expressions registered.
+// Use this when you need to serialize/deserialize expr-lang-specific expressions.
+//
+// Example:
+//
+//	registry := exprlang.NewRegistry()
+//	expr := exprlang.Predicate("len(.Content) > 240")
+//	formatted, _ := sift.Format(expr, registry)
+//	// Output: "exprlang(len\(.Content\) > 240)"
+func NewRegistry() *sift.Registry {
+	registry := sift.NewRegistry()
+	registry.Register("exprlang", Formatter{})
+	return registry
 }
 
 // Predicate creates a custom expression using expr-lang predicate syntax.

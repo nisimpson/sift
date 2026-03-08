@@ -18,12 +18,12 @@ type SizeExpression struct {
 
 // Type returns the type identifier for this custom expression.
 func (s *SizeExpression) Type() string {
-	return "dynamodb_size"
+	return "size"
 }
 
 // String returns the string representation of the size expression.
 func (s *SizeExpression) String() string {
-	return fmt.Sprintf("dynamodb_size(%s,%s,%d)", s.Path, s.Op, s.Size)
+	return fmt.Sprintf("size(%s,%s,%d)", s.Path, s.Op, s.Size)
 }
 
 // Size creates a custom expression for DynamoDB's size() function.
@@ -45,12 +45,12 @@ type AttributeTypeExpression struct {
 
 // Type returns the type identifier for this custom expression.
 func (a *AttributeTypeExpression) Type() string {
-	return "dynamodb_attribute_type"
+	return "attribute_type"
 }
 
 // String returns the string representation of the attribute_type expression.
 func (a *AttributeTypeExpression) String() string {
-	return fmt.Sprintf("dynamodb_attribute_type(%s,%s)", a.Path, a.AttrType)
+	return fmt.Sprintf("attribute_type(%s,%s)", a.Path, a.AttrType)
 }
 
 // IsAttributeType creates a custom expression for DynamoDB's attribute_type() function.
@@ -70,9 +70,9 @@ type Formatter struct{}
 func (f Formatter) FormatCustomExpression(expression sift.CustomExpression) (string, error) {
 	switch expr := expression.(type) {
 	case *SizeExpression:
-		return fmt.Sprintf("dynamodb_size(%s,%s,%d)", expr.Path, expr.Op, expr.Size), nil
+		return fmt.Sprintf("size(%s,%s,%d)", expr.Path, expr.Op, expr.Size), nil
 	case *AttributeTypeExpression:
-		return fmt.Sprintf("dynamodb_attribute_type(%s,%s)", expr.Path, expr.AttrType), nil
+		return fmt.Sprintf("attribute_type(%s,%s)", expr.Path, expr.AttrType), nil
 	default:
 		return "", fmt.Errorf("unsupported DynamoDB custom expression type: %T", expression)
 	}
@@ -96,7 +96,7 @@ func (f SizeFormatter) FormatCustomExpression(expression sift.CustomExpression) 
 	if !ok {
 		return "", fmt.Errorf("expected *SizeExpression, got %T", expression)
 	}
-	return fmt.Sprintf("dynamodb_size(%s,%s,%d)", expr.Path, expr.Op, expr.Size), nil
+	return fmt.Sprintf("size(%s,%s,%d)", expr.Path, expr.Op, expr.Size), nil
 }
 
 // ParseCustomExpression deserializes a SizeExpression.
@@ -157,7 +157,7 @@ func (f AttributeTypeFormatter) FormatCustomExpression(expression sift.CustomExp
 	if !ok {
 		return "", fmt.Errorf("expected *AttributeTypeExpression, got %T", expression)
 	}
-	return fmt.Sprintf("dynamodb_attribute_type(%s,%s)", expr.Path, expr.AttrType), nil
+	return fmt.Sprintf("attribute_type(%s,%s)", expr.Path, expr.AttrType), nil
 }
 
 // ParseCustomExpression deserializes an AttributeTypeExpression.
@@ -191,10 +191,20 @@ func (f AttributeTypeFormatter) ParseCustomExpression(p *sift.Parser) (sift.Cust
 	}, nil
 }
 
-// init registers the DynamoDB custom expression formatters.
-func init() {
-	sift.RegisterCustomExpression(&SizeExpression{}, SizeFormatter{})
-	sift.RegisterCustomExpression(&AttributeTypeExpression{}, AttributeTypeFormatter{})
+// NewRegistry creates a sift registry with DynamoDB custom expressions registered.
+// Use this when you need to serialize/deserialize DynamoDB-specific expressions.
+//
+// Example:
+//
+//	registry := dynamodb.NewRegistry()
+//	expr := dynamodb.Size("tags", sift.OperationGT, 5)
+//	formatted, _ := sift.Format(expr, registry)
+//	// Output: "size(tags,gt,5)"
+func NewRegistry() *sift.Registry {
+	registry := sift.NewRegistry()
+	registry.Register("size", SizeFormatter{})
+	registry.Register("attribute_type", AttributeTypeFormatter{})
+	return registry
 }
 
 // EvaluateCustom handles DynamoDB-specific custom expressions.

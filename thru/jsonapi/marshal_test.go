@@ -58,14 +58,14 @@ func TestParse(t *testing.T) {
 				t.Fatalf("Failed to parse query: %v", err)
 			}
 
-			got, err := Parse(values)
+			got, err := Parse(values, nil)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Parse() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
 			if !tt.wantErr {
-				gotStr, _ := sift.Format(got)
+				gotStr, _ := sift.Format(got, nil)
 				if gotStr != tt.want {
 					t.Errorf("Parse() = %v, want %v", gotStr, tt.want)
 				}
@@ -149,7 +149,7 @@ func TestFormat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			values, err := Format(tt.expr)
+			values, err := Format(tt.expr, nil)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Format() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -229,20 +229,20 @@ func TestRoundTrip(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Format to JSON:API
-			values, err := Format(tt.expr)
+			values, err := Format(tt.expr, nil)
 			if err != nil {
 				t.Fatalf("Format() error = %v", err)
 			}
 
 			// Parse back
-			parsed, err := Parse(values)
+			parsed, err := Parse(values, nil)
 			if err != nil {
 				t.Fatalf("Parse() error = %v", err)
 			}
 
 			// Compare using sift.Format
-			wantStr, _ := sift.Format(tt.expr)
-			gotStr, _ := sift.Format(parsed)
+			wantStr, _ := sift.Format(tt.expr, nil)
+			gotStr, _ := sift.Format(parsed, nil)
 
 			if wantStr != gotStr {
 				t.Errorf("Round-trip failed: got %v, want %v", gotStr, wantStr)

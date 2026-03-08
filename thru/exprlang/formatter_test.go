@@ -8,6 +8,9 @@ import (
 )
 
 func TestFormatter_FormatAndParse(t *testing.T) {
+	// Create registry with exprlang custom expressions
+	registry := exprlang.NewRegistry()
+
 	tests := []struct {
 		name string
 		expr sift.Expression
@@ -43,7 +46,7 @@ func TestFormatter_FormatAndParse(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test formatting
-			formatted, err := sift.Format(tt.expr)
+			formatted, err := sift.Format(tt.expr, registry)
 			if err != nil {
 				t.Fatalf("Format() error = %v", err)
 			}
@@ -52,13 +55,13 @@ func TestFormatter_FormatAndParse(t *testing.T) {
 			}
 
 			// Test parsing (round-trip)
-			parsed, err := sift.Parse(formatted)
+			parsed, err := sift.Parse(formatted, registry)
 			if err != nil {
 				t.Fatalf("Parse() error = %v", err)
 			}
 
 			// Format again to verify round-trip
-			reformatted, err := sift.Format(parsed)
+			reformatted, err := sift.Format(parsed, registry)
 			if err != nil {
 				t.Fatalf("Format() after Parse() error = %v", err)
 			}
@@ -70,6 +73,9 @@ func TestFormatter_FormatAndParse(t *testing.T) {
 }
 
 func TestFormatter_ParseErrors(t *testing.T) {
+	// Create registry with exprlang custom expressions
+	registry := exprlang.NewRegistry()
+
 	tests := []struct {
 		name    string
 		input   string
@@ -84,7 +90,7 @@ func TestFormatter_ParseErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := sift.Parse(tt.input)
+			_, err := sift.Parse(tt.input, registry)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Parse() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -93,25 +99,28 @@ func TestFormatter_ParseErrors(t *testing.T) {
 }
 
 func TestFormatter_ComplexRoundTrip(t *testing.T) {
+	// Create registry with exprlang custom expressions
+	registry := exprlang.NewRegistry()
+
 	// Create a complex filter with nested operations and custom expressions
 	filter := sift.Eq("Status", "published").
 		And(exprlang.RawExpression("len(Comments) > 10")).
 		Or(sift.In("Tags", "featured").And(exprlang.RawExpression("Views > 1000")))
 
 	// Format to string
-	formatted, err := sift.Format(filter)
+	formatted, err := sift.Format(filter, registry)
 	if err != nil {
 		t.Fatalf("Format() error = %v", err)
 	}
 
 	// Parse back
-	parsed, err := sift.Parse(formatted)
+	parsed, err := sift.Parse(formatted, registry)
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
 
 	// Format again
-	reformatted, err := sift.Format(parsed)
+	reformatted, err := sift.Format(parsed, registry)
 	if err != nil {
 		t.Fatalf("Format() after Parse() error = %v", err)
 	}

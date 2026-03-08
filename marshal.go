@@ -16,23 +16,38 @@ type CustomFormatter interface {
 	ParseCustomExpression(p *Parser) (CustomExpression, error)
 }
 
-var (
-	customFormatters = make(map[string]CustomFormatter)
-)
+// Registry holds custom expression formatters.
+// Use NewRegistry to create a registry and Register to add formatters.
+type Registry struct {
+	formatters map[string]CustomFormatter
+}
 
-// RegisterCustomExpression registers a formatter for a [CustomExpression] type.
-// The expression parameter is used to determine the expression type key via [CustomExpression.Type]().
+// NewRegistry creates a new custom expression registry.
+func NewRegistry() *Registry {
+	return &Registry{
+		formatters: make(map[string]CustomFormatter),
+	}
+}
+
+// Register registers a custom formatter by name.
+// The name is what appears in the serialized format (e.g., "size", "geo_within").
+// Panics if a formatter with the same name is already registered.
 //
 // Example:
 //
-//	RegisterCustomExpression(&GeoWithinNode{}, GeoFormatter{})
-func RegisterCustomExpression(expression CustomExpression, formatter CustomFormatter) {
-	key := expression.Type()
-	customFormatters[key] = formatter
+//	registry := sift.NewRegistry()
+//	registry.Register("size", SizeFormatter{})
+func (r *Registry) Register(name string, formatter CustomFormatter) {
+	if _, exists := r.formatters[name]; exists {
+		panic(fmt.Sprintf("sift: formatter already registered for name: %s", name))
+	}
+	r.formatters[name] = formatter
 }
 
 // Format serializes a filter expression to a string using prefix notation.
 // The format is URL-safe and unambiguous, suitable for query strings.
+//
+// If registry is nil, no custom expressions are supported.
 //
 // Supported operations:
 //
@@ -52,38 +67,49 @@ func RegisterCustomExpression(expression CustomExpression, formatter CustomForma
 //	or(expr1,expr2)          // logical OR
 //	not(expr)                // logical NOT
 //
-// Custom expressions registered via RegisterCustomExpression are also supported.
+// Custom expressions registered in the registry are also supported.
 //
 // Special characters (commas, parentheses, backslashes) in values are escaped with backslash.
 //
 // Example:
 //
-//	and(eq(status,active),gt(age,18))
-func Format(expr Expression) (string, error) {
+//	registry := sift.NewRegistry()
+//	registry.Register("size", SizeFormatter{})
+//	str, _ := sift.Format(expr, registry)
+//	// Output: and(eq(status,active),size(tags,gt,5))
+func Format(expr Expression, registry *Registry) (string, error) {
+	return format(expr, registry)
+}
+
+func format(expr Expression, registry *Registry) (string, error) {
 	switch n := expr.(type) {
 	case *Condition:
 		return formatCondition(n)
 	case *AndOperation:
-		return formatAnd(n)
+		return formatAnd(n, registry)
 	case *OrOperation:
-		return formatOr(n)
+		return formatOr(n, registry)
 	case *NotOperation:
-		return formatNot(n)
+		return formatNot(n, registry)
 	case ExpressionBuilder:
 		// Unwrap the builder and format the inner expression
-		return Format(n.expr)
+		return format(n.expr, registry)
 	case *customNodeWrapper:
 		// Unwrap and format the custom expression
-		return formatCustom(n.node)
+		return formatCustom(n.node, registry)
 	default:
 		return "", fmt.Errorf("unsupported expression type: %T", expr)
 	}
 }
 
-// formatCustom formats a custom expression using its registered formatter.
-func formatCustom(n CustomExpression) (string, error) {
+// formatCustom formats a custom expression using the registry.
+func formatCustom(n CustomExpression, registry *Registry) (string, error) {
+	if registry == nil {
+		return "", fmt.Errorf("no registry provided for custom expression type: %s", n.Type())
+	}
+	
 	key := n.Type()
-	formatter, ok := customFormatters[key]
+	formatter, ok := registry.formatters[key]
 	if !ok {
 		return "", fmt.Errorf("no formatter registered for custom expression type: %s", key)
 	}
@@ -109,12 +135,12 @@ func formatCondition(e *Condition) (string, error) {
 }
 
 // formatAnd converts an AndOperation expression to prefix notation.
-func formatAnd(a *AndOperation) (string, error) {
-	left, err := Format(a.Left)
+func formatAnd(a *AndOperation, registry *Registry) (string, error) {
+	left, err := format(a.Left, registry)
 	if err != nil {
 		return "", err
 	}
-	right, err := Format(a.Right)
+	right, err := format(a.Right, registry)
 	if err != nil {
 		return "", err
 	}
@@ -122,12 +148,12 @@ func formatAnd(a *AndOperation) (string, error) {
 }
 
 // formatOr converts an OrOperation expression to prefix notation.
-func formatOr(o *OrOperation) (string, error) {
-	left, err := Format(o.Left)
+func formatOr(o *OrOperation, registry *Registry) (string, error) {
+	left, err := format(o.Left, registry)
 	if err != nil {
 		return "", err
 	}
-	right, err := Format(o.Right)
+	right, err := format(o.Right, registry)
 	if err != nil {
 		return "", err
 	}
@@ -135,8 +161,8 @@ func formatOr(o *OrOperation) (string, error) {
 }
 
 // formatNot converts a NotOperation expression to prefix notation.
-func formatNot(n *NotOperation) (string, error) {
-	child, err := Format(n.Child)
+func formatNot(n *NotOperation, registry *Registry) (string, error) {
+	child, err := format(n.Child, registry)
 	if err != nil {
 		return "", err
 	}
@@ -156,17 +182,28 @@ func escapeValue(s string) string {
 // Parse deserializes a string into a filter expression using prefix notation.
 // The input should be in the format produced by [Format]().
 //
-// Example: Parse("and(eq(status,active),gt(age,18))")
-func Parse(s string) (Expression, error) {
-	p := &Parser{input: s, pos: 0}
+// If registry is nil, no custom expressions are supported.
+//
+// Example:
+//
+//	registry := sift.NewRegistry()
+//	registry.Register("size", SizeFormatter{})
+//	expr, _ := sift.Parse("and(eq(status,active),size(tags,gt,5))", registry)
+func Parse(s string, registry *Registry) (Expression, error) {
+	p := &Parser{
+		input:    s,
+		pos:      0,
+		registry: registry,
+	}
 	return p.parse()
 }
 
 // Parser is a recursive descent parser for prefix notation filter expressions.
 // It is exported to allow [CustomFormatter] parsers to access parsing utilities.
 type Parser struct {
-	input string // input string to parse
-	pos   int    // current position in input
+	input    string    // input string to parse
+	pos      int       // current position in input
+	registry *Registry // custom expression registry
 }
 
 // parse is the main parsing entry point. It reads a function call and dispatches
@@ -208,9 +245,13 @@ func (p *Parser) parse() (Expression, error) {
 	}
 }
 
-// parseCustom attempts to parse a custom expression using registered parsers.
+// parseCustom attempts to parse a custom expression using the registry.
 func (p *Parser) parseCustom(fn string) (Expression, error) {
-	formatter, ok := customFormatters[fn]
+	if p.registry == nil {
+		return nil, fmt.Errorf("unknown function: %s (no registry provided)", fn)
+	}
+	
+	formatter, ok := p.registry.formatters[fn]
 	if !ok {
 		return nil, fmt.Errorf("unknown function: %s", fn)
 	}

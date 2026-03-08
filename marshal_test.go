@@ -145,7 +145,7 @@ func TestFormat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Format(tt.expr)
+			got, err := Format(tt.expr, nil)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Format() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -264,7 +264,7 @@ func TestParse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Parse(tt.input)
+			got, err := Parse(tt.input, nil)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Parse() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -337,19 +337,19 @@ func TestFormatParseRoundTrip(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Format the expression
-			formatted, err := Format(tt.expr)
+			formatted, err := Format(tt.expr, nil)
 			if err != nil {
 				t.Fatalf("Format() error = %v", err)
 			}
 
 			// Parse it back
-			parsed, err := Parse(formatted)
+			parsed, err := Parse(formatted, nil)
 			if err != nil {
 				t.Fatalf("Parse() error = %v", err)
 			}
 
 			// Format again
-			reformatted, err := Format(parsed)
+			reformatted, err := Format(parsed, nil)
 			if err != nil {
 				t.Fatalf("Format() second time error = %v", err)
 			}
@@ -412,6 +412,21 @@ func TestParserMethods(t *testing.T) {
 	})
 }
 
+// TestRegistryDuplicatePanic tests that Registry.Register panics on duplicate names
+func TestRegistryDuplicatePanic(t *testing.T) {
+	registry := NewRegistry()
+	registry.Register("test", geoFormatter{})
+
+	// Attempting to register the same name again should panic
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("Expected panic when registering duplicate name")
+		}
+	}()
+
+	registry.Register("test", geoFormatter{})
+}
+
 // geoWithin is a test custom expression type
 type geoWithin struct {
 	field  string
@@ -459,10 +474,11 @@ type errorCustom struct{}
 func (e *errorCustom) Type() string   { return "error_custom" }
 func (e *errorCustom) String() string { return "error_custom()" }
 
-// TestRegisterCustomExpression tests custom expression registration
-func TestRegisterCustomExpression(t *testing.T) {
-	// Register the custom expression
-	RegisterCustomExpression(&geoWithin{}, geoFormatter{})
+// TestCustomExpressionRegistry tests custom expression registration with registry
+func TestCustomExpressionRegistry(t *testing.T) {
+	// Create a registry and register the custom expression
+	registry := NewRegistry()
+	registry.Register("geo_within", geoFormatter{})
 
 	t.Run("format custom expression", func(t *testing.T) {
 		custom := &geoWithin{
@@ -473,7 +489,7 @@ func TestRegisterCustomExpression(t *testing.T) {
 		}
 		expr := NewCustomExpression(custom)
 
-		formatted, err := Format(expr)
+		formatted, err := Format(expr, registry)
 		if err != nil {
 			t.Fatalf("Format() error = %v", err)
 		}
@@ -487,7 +503,7 @@ func TestRegisterCustomExpression(t *testing.T) {
 	t.Run("parse custom expression", func(t *testing.T) {
 		input := "geo_within(location)"
 
-		parsed, err := Parse(input)
+		parsed, err := Parse(input, registry)
 		if err != nil {
 			t.Fatalf("Parse() error = %v", err)
 		}
@@ -509,17 +525,17 @@ func TestRegisterCustomExpression(t *testing.T) {
 		custom := &geoWithin{field: "location"}
 		expr := NewCustomExpression(custom)
 
-		formatted, err := Format(expr)
+		formatted, err := Format(expr, registry)
 		if err != nil {
 			t.Fatalf("Format() error = %v", err)
 		}
 
-		parsed, err := Parse(formatted)
+		parsed, err := Parse(formatted, registry)
 		if err != nil {
 			t.Fatalf("Parse() error = %v", err)
 		}
 
-		reformatted, err := Format(parsed)
+		reformatted, err := Format(parsed, registry)
 		if err != nil {
 			t.Fatalf("Format() second time error = %v", err)
 		}
@@ -557,7 +573,7 @@ func TestCustomExpressionErrors(t *testing.T) {
 		custom := &unregisteredCustom{}
 		expr := NewCustomExpression(custom)
 
-		_, err := Format(expr)
+		_, err := Format(expr, nil)
 		if err == nil {
 			t.Error("Expected error for unregistered custom expression")
 		}
@@ -566,7 +582,7 @@ func TestCustomExpressionErrors(t *testing.T) {
 	t.Run("parse unregistered custom expression", func(t *testing.T) {
 		input := "unknown_custom(field)"
 
-		_, err := Parse(input)
+		_, err := Parse(input, nil)
 		if err == nil {
 			t.Error("Expected error for unknown custom expression")
 		}
@@ -574,20 +590,24 @@ func TestCustomExpressionErrors(t *testing.T) {
 
 	t.Run("custom formatter parse error", func(t *testing.T) {
 		// Register a formatter that returns an error
-		RegisterCustomExpression(&errorCustom{}, errorFormatter{})
+		registry := NewRegistry()
+		registry.Register("error_custom", errorFormatter{})
 
 		input := "error_custom(field)"
-		_, err := Parse(input)
+		_, err := Parse(input, registry)
 		if err == nil {
 			t.Error("Expected error from custom formatter ParseCustomExpression")
 		}
 	})
 
 	t.Run("custom formatter format error", func(t *testing.T) {
+		registry := NewRegistry()
+		registry.Register("error_custom", errorFormatter{})
+		
 		custom := &errorCustom{}
 		expr := NewCustomExpression(custom)
 
-		_, err := Format(expr)
+		_, err := Format(expr, registry)
 		if err == nil {
 			t.Error("Expected error from custom formatter FormatCustomExpression")
 		}
@@ -635,7 +655,7 @@ func TestFormatAllOperations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Format(tt.expr)
+			got, err := Format(tt.expr, nil)
 			if err != nil {
 				t.Errorf("Format() error = %v", err)
 				return
@@ -655,7 +675,7 @@ func TestFormatUnsupportedOperation(t *testing.T) {
 		Value:     "value",
 	}
 
-	_, err := Format(expr)
+	_, err := Format(expr, nil)
 	if err == nil {
 		t.Error("Expected error for unsupported operation")
 	}
@@ -739,7 +759,7 @@ func TestParseErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := Parse(tt.input)
+			_, err := Parse(tt.input, nil)
 			if err == nil {
 				t.Errorf("Parse(%q) expected error, got nil", tt.input)
 			}
@@ -788,7 +808,7 @@ func TestParseAllOperations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Parse(tt.input)
+			got, err := Parse(tt.input, nil)
 			if err != nil {
 				t.Errorf("Parse() error = %v", err)
 				return
@@ -817,7 +837,7 @@ func TestFormatAndErrors(t *testing.T) {
 			},
 		}
 
-		_, err := Format(expr)
+		_, err := Format(expr, nil)
 		if err == nil {
 			t.Error("Expected error from left side")
 		}
@@ -837,7 +857,7 @@ func TestFormatAndErrors(t *testing.T) {
 			},
 		}
 
-		_, err := Format(expr)
+		_, err := Format(expr, nil)
 		if err == nil {
 			t.Error("Expected error from right side")
 		}
@@ -860,7 +880,7 @@ func TestFormatOrErrors(t *testing.T) {
 			},
 		}
 
-		_, err := Format(expr)
+		_, err := Format(expr, nil)
 		if err == nil {
 			t.Error("Expected error from left side")
 		}
@@ -880,7 +900,7 @@ func TestFormatOrErrors(t *testing.T) {
 			},
 		}
 
-		_, err := Format(expr)
+		_, err := Format(expr, nil)
 		if err == nil {
 			t.Error("Expected error from right side")
 		}
@@ -897,7 +917,7 @@ func TestFormatNotErrors(t *testing.T) {
 		},
 	}
 
-	_, err := Format(expr)
+	_, err := Format(expr, nil)
 	if err == nil {
 		t.Error("Expected error from child")
 	}

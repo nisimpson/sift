@@ -224,7 +224,7 @@ func TestExpressionBuilderComplexExpressions(t *testing.T) {
 // TestExpressionBuilderWithParse tests using builder with parsed expressions
 func TestExpressionBuilderWithParse(t *testing.T) {
 	// Parse an existing filter
-	parsed, err := Parse("eq(status,active)")
+	parsed, err := Parse("eq(status,active)", nil)
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
@@ -244,7 +244,7 @@ func TestExpressionBuilderWithParse(t *testing.T) {
 	}
 
 	// Format and check
-	formatted, err := Format(builder)
+	formatted, err := Format(builder, nil)
 	if err != nil {
 		t.Fatalf("Format() error = %v", err)
 	}
@@ -538,7 +538,7 @@ func TestBuilderConvenienceFunctionsWithThru(t *testing.T) {
 func TestBuilderConvenienceFunctionsWithFormat(t *testing.T) {
 	builder := Eq("status", "active").And(Gt("age", 18))
 
-	formatted, err := Format(builder)
+	formatted, err := Format(builder, nil)
 	if err != nil {
 		t.Fatalf("Format() error = %v", err)
 	}

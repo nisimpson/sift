@@ -114,6 +114,9 @@ func TestCustomExpression_MixedWithStandard(t *testing.T) {
 }
 
 func TestCustomExpression_Serialization(t *testing.T) {
+	// Create registry with DynamoDB custom expressions
+	registry := dynamodb.NewRegistry()
+
 	tests := []struct {
 		name string
 		expr sift.Expression
@@ -122,24 +125,24 @@ func TestCustomExpression_Serialization(t *testing.T) {
 		{
 			name: "size expression",
 			expr: dynamodb.Size("tags", sift.OperationGT, 5),
-			want: "dynamodb_size(tags,gt,5)",
+			want: "size(tags,gt,5)",
 		},
 		{
 			name: "attribute type expression",
 			expr: dynamodb.IsAttributeType("metadata", "M"),
-			want: "dynamodb_attribute_type(metadata,M)",
+			want: "attribute_type(metadata,M)",
 		},
 		{
 			name: "mixed with standard",
 			expr: sift.Eq("status", "active").And(dynamodb.Size("tags", sift.OperationGT, 3)),
-			want: "and(eq(status,active),dynamodb_size(tags,gt,3))",
+			want: "and(eq(status,active),size(tags,gt,3))",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test formatting
-			formatted, err := sift.Format(tt.expr)
+			formatted, err := sift.Format(tt.expr, registry)
 			if err != nil {
 				t.Fatalf("Format() error = %v", err)
 			}
@@ -148,13 +151,13 @@ func TestCustomExpression_Serialization(t *testing.T) {
 			}
 
 			// Test parsing (round-trip)
-			parsed, err := sift.Parse(formatted)
+			parsed, err := sift.Parse(formatted, registry)
 			if err != nil {
 				t.Fatalf("Parse() error = %v", err)
 			}
 
 			// Format again to verify round-trip
-			reformatted, err := sift.Format(parsed)
+			reformatted, err := sift.Format(parsed, registry)
 			if err != nil {
 				t.Fatalf("Format() after Parse() error = %v", err)
 			}

@@ -320,14 +320,15 @@ func ExampleAdapter_customExpressions_mixed() {
 
 func ExampleAdapter_customExpressions_serialization() {
 	// Custom expressions can be serialized and parsed
+	registry := siftddb.NewRegistry()
 	filter := siftddb.Size("tags", sift.OperationGT, 5)
 
 	// Serialize to string
-	str, _ := sift.Format(filter)
+	str, _ := sift.Format(filter, registry)
 	fmt.Printf("Serialized: %s\n", str)
 
 	// Parse back
-	parsed, _ := sift.Parse(str)
+	parsed, _ := sift.Parse(str, registry)
 
 	// Use with adapter
 	adapter := siftddb.NewAdapter()
@@ -337,6 +338,6 @@ func ExampleAdapter_customExpressions_serialization() {
 	fmt.Printf("Expression: %s\n", *expr.Condition())
 
 	// Output:
-	// Serialized: dynamodb_size(tags,gt,5)
+	// Serialized: size(tags,gt,5)
 	// Expression: size (#0) > :0
 }

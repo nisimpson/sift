@@ -48,6 +48,7 @@ go get github.com/nisimpson/sift
 ### Backend Adapters
 
 - [DynamoDB](./thru/dynamodb) - `go get github.com/nisimpson/sift/thru/dynamodb`
+- [SQL](./thru/sql) - `go get github.com/nisimpson/sift/thru/sql` (PostgreSQL, MySQL, SQLite, SQL Server)
 
 ## Quick Start
 
@@ -352,9 +353,27 @@ type PostgresUserRepo struct {
 }
 
 func (r *PostgresUserRepo) Find(ctx context.Context, filter sift.Expression) ([]*User, error) {
-    adapter := postgres.NewAdapter()
+    adapter := sqlAdapter.NewAdapter() // Defaults to PostgreSQL
     sift.Thru(ctx, adapter, filter)
-    // Use adapter.Query(), adapter.Args() with PostgreSQL
+    
+    query := fmt.Sprintf("SELECT * FROM users WHERE %s", adapter.Query())
+    rows, err := r.db.Query(query, adapter.Args()...)
+    // ... scan rows into users
+}
+
+// MySQL implementation
+type MySQLUserRepo struct {
+    db *sql.DB
+}
+
+func (r *MySQLUserRepo) Find(ctx context.Context, filter sift.Expression) ([]*User, error) {
+    config := &sqlAdapter.Config{Dialect: sqlAdapter.DialectMySQL}
+    adapter := sqlAdapter.NewAdapterWithConfig(config)
+    sift.Thru(ctx, adapter, filter)
+    
+    query := fmt.Sprintf("SELECT * FROM users WHERE %s", adapter.Query())
+    rows, err := r.db.Query(query, adapter.Args()...)
+    // ... scan rows into users
 }
 ```
 

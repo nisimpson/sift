@@ -210,17 +210,25 @@ rows, err := db.Query(adapter.query, adapter.args...)
 Sift includes built-in serialization to a URL-safe prefix notation format:
 
 ```go
-// Serialize
+// Serialize (no custom expressions)
 filter := &sift.Condition{
     Name:      "status",
     Operation: sift.OperationEQ,
     Value:     "active",
 }
-str, err := sift.Format(filter)
+str, err := sift.Format(filter, nil)
 // str = "eq(status,active)"
 
-// Deserialize
-expr, err := sift.Parse("and(eq(status,active),gt(age,18))")
+// Deserialize (no custom expressions)
+expr, err := sift.Parse("and(eq(status,active),gt(age,18))", nil)
+
+// With custom expressions, provide a registry
+registry := dynamodb.NewRegistry()
+filter := dynamodb.Size("tags", sift.OperationGT, 5)
+str, err := sift.Format(filter, registry)
+// str = "size(tags,gt,5)"
+
+parsed, err := sift.Parse(str, registry)
 ```
 
 ### Format Examples
@@ -242,7 +250,7 @@ GET /users?filter=and(eq(status,active),gt(age,18))
 
 ## Custom Expressions
 
-Extend Sift with custom expression types for backend-specific operations:
+Extend Sift with custom expression types for backend-specific operations using the Registry pattern:
 
 ```go
 // Define a custom expression type
@@ -278,10 +286,9 @@ func (GeoFormatter) ParseCustomExpression(p *sift.Parser) (sift.CustomExpression
     return &GeoWithinExpression{field, lat, lng, radius}, nil
 }
 
-// Register the custom expression type
-func init() {
-    sift.RegisterCustomExpression(&GeoWithinExpression{}, GeoFormatter{})
-}
+// Create a registry and register the custom expression
+registry := sift.NewRegistry()
+registry.Register("geo_within", GeoFormatter{})
 
 // Use the custom expression
 expr := sift.NewCustomExpression(&GeoWithinExpression{
@@ -290,6 +297,33 @@ expr := sift.NewCustomExpression(&GeoWithinExpression{
     Lng:    -74.0060,
     Radius: 5000,
 })
+
+// Serialize with registry
+str, _ := sift.Format(expr, registry)
+// str = "geo_within(location,40.712800,-74.006000,5000.000000)"
+
+// Parse with registry
+parsed, _ := sift.Parse(str, registry)
+```
+
+### Registry Pattern
+
+The registry pattern prevents naming collisions when multiple backends define custom expressions:
+
+```go
+// Each backend provides its own registry
+dynamoRegistry := dynamodb.NewRegistry()  // Registers "size", "attribute_type"
+exprRegistry := exprlang.NewRegistry()    // Registers "exprlang"
+
+// Use the appropriate registry for your backend
+filter := dynamodb.Size("tags", sift.OperationGT, 5)
+str, _ := sift.Format(filter, dynamoRegistry)
+// str = "size(tags,gt,5)"
+
+// For expressions without custom types, pass nil
+filter := sift.Eq("status", "active")
+str, _ := sift.Format(filter, nil)
+// str = "eq(status,active)"
 ```
 
 ## Use Cases
@@ -329,7 +363,9 @@ func (r *PostgresUserRepo) Find(ctx context.Context, filter sift.Expression) ([]
 ```go
 func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
     filterStr := r.URL.Query().Get("filter")
-    filter, err := sift.Parse(filterStr)
+    
+    // Parse with appropriate registry (or nil if no custom expressions)
+    filter, err := sift.Parse(filterStr, nil)
     if err != nil {
         http.Error(w, "Invalid filter", http.StatusBadRequest)
         return

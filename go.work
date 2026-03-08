@@ -5,4 +5,5 @@ use (
 	./thru/dynamodb
 	./thru/exprlang
 	./thru/jsonapi
+	./thru/sql
 )

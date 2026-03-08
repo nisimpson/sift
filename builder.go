@@ -130,3 +130,51 @@ func (b ExpressionBuilder) Not() ExpressionBuilder {
 		expr: &NotOperation{Child: b},
 	}
 }
+
+// SortBuilder provides a fluent API for building sort expressions.
+type SortBuilder struct {
+	fields []*SortField
+}
+
+// Sort creates a new sort expression with a single field.
+//
+// Example:
+//
+//	sort := sift.Sort("created_at", sift.SortDesc)
+func Sort(name string, direction SortDirection) SortBuilder {
+	return SortBuilder{
+		fields: []*SortField{{Name: name, Direction: direction}},
+	}
+}
+
+// ThenBy adds another sort field to the expression.
+// Fields are applied in the order they are added.
+//
+// Example:
+//
+//	sort := sift.Sort("created_at", sift.SortDesc).ThenBy("name", sift.SortAsc)
+func (b SortBuilder) ThenBy(name string, direction SortDirection) SortBuilder {
+	b.fields = append(b.fields, &SortField{Name: name, Direction: direction})
+	return b
+}
+
+// NullsLast sets the NullsLast flag on the most recently added field.
+// This controls whether NULL values appear last in the sort order.
+// Note: Not all backends support this feature.
+//
+// Example:
+//
+//	sort := sift.Sort("email", sift.SortAsc).NullsLast()
+func (b SortBuilder) NullsLast() SortBuilder {
+	if len(b.fields) > 0 {
+		b.fields[len(b.fields)-1].NullsLast = true
+	}
+	return b
+}
+
+// accept implements SortExpression for SortBuilder.
+// This allows SortBuilder to be used directly without calling Build().
+func (b SortBuilder) accept(ctx context.Context, evaluator *Evaluator) error {
+	list := &SortList{Fields: b.fields}
+	return list.accept(ctx, evaluator)
+}

@@ -341,3 +341,85 @@ func ExampleAdapter_customExpressions_serialization() {
 	// Serialized: size(tags,gt,5)
 	// Expression: size (#0) > :0
 }
+
+func ExampleAdapter_sorting() {
+	// Sort by created_at in descending order (newest first)
+	sort := sift.Sort("created_at", sift.SortDesc)
+
+	adapter := siftddb.NewAdapter()
+	sift.SortThru(context.Background(), adapter, sort)
+
+	forward := adapter.ScanIndexForward()
+	fmt.Printf("ScanIndexForward: %v\n", *forward)
+	fmt.Printf("Direction: descending\n")
+
+	// Output:
+	// ScanIndexForward: false
+	// Direction: descending
+}
+
+func ExampleAdapter_sortingAscending() {
+	// Sort by created_at in ascending order (oldest first)
+	sort := sift.Sort("created_at", sift.SortAsc)
+
+	adapter := siftddb.NewAdapter()
+	sift.SortThru(context.Background(), adapter, sort)
+
+	forward := adapter.ScanIndexForward()
+	fmt.Printf("ScanIndexForward: %v\n", *forward)
+	fmt.Printf("Direction: ascending\n")
+
+	// Output:
+	// ScanIndexForward: true
+	// Direction: ascending
+}
+
+func ExampleAdapter_filterAndSort() {
+	// Combine filtering and sorting
+	filter := sift.Eq("status", "active")
+	sort := sift.Sort("created_at", sift.SortDesc)
+
+	adapter := siftddb.NewAdapter()
+	sift.Thru(context.Background(), adapter, filter)
+	sift.SortThru(context.Background(), adapter, sort)
+
+	expr, _ := adapter.Expression()
+	forward := adapter.ScanIndexForward()
+
+	// Use with Query
+	input := &dynamodb.QueryInput{
+		TableName:                 aws.String("Users"),
+		KeyConditionExpression:    aws.String("pk = :pk"),
+		FilterExpression:          expr.Condition(),
+		ExpressionAttributeNames:  expr.Names(),
+		ExpressionAttributeValues: expr.Values(),
+		ScanIndexForward:          forward,
+	}
+
+	fmt.Printf("Table: %s\n", *input.TableName)
+	fmt.Printf("Has filter: %v\n", input.FilterExpression != nil)
+	fmt.Printf("ScanIndexForward: %v\n", *input.ScanIndexForward)
+
+	// Output:
+	// Table: Users
+	// Has filter: true
+	// ScanIndexForward: false
+}
+
+func ExampleAdapter_sortingLimitation() {
+	// DynamoDB only supports sorting by the sort key
+	// Multiple sort fields are accepted but only the first is used
+	sort := sift.Sort("created_at", sift.SortDesc).
+		ThenBy("name", sift.SortAsc)
+
+	adapter := siftddb.NewAdapter()
+	sift.SortThru(context.Background(), adapter, sort)
+
+	forward := adapter.ScanIndexForward()
+	fmt.Printf("ScanIndexForward: %v\n", *forward)
+	fmt.Printf("Note: Only first field (created_at) affects sort direction\n")
+
+	// Output:
+	// ScanIndexForward: false
+	// Note: Only first field (created_at) affects sort direction
+}

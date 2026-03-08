@@ -459,3 +459,113 @@ func TestAdapter_StringTypeDoesNotParse(t *testing.T) {
 	t.Logf("Filter Expression: %s", *expr.Condition())
 	t.Logf("Values: %v", expr.Values())
 }
+
+func TestAdapter_EvaluateSortField(t *testing.T) {
+	tests := []struct {
+		name             string
+		sortExpr         sift.SortExpression
+		wantForward      *bool
+		wantErr          bool
+	}{
+		{
+			name:        "ascending sort",
+			sortExpr:    &sift.SortField{Name: "created_at", Direction: sift.SortAsc},
+			wantForward: boolPtr(true),
+			wantErr:     false,
+		},
+		{
+			name:        "descending sort",
+			sortExpr:    &sift.SortField{Name: "created_at", Direction: sift.SortDesc},
+			wantForward: boolPtr(false),
+			wantErr:     false,
+		},
+		{
+			name: "multiple fields - only first is used",
+			sortExpr: &sift.SortList{
+				Fields: []*sift.SortField{
+					{Name: "created_at", Direction: sift.SortDesc},
+					{Name: "name", Direction: sift.SortAsc},
+				},
+			},
+			wantForward: boolPtr(false), // Only first field matters
+			wantErr:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adapter := NewAdapter()
+			err := sift.SortThru(context.Background(), adapter, tt.sortExpr)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("SortThru() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			got := adapter.ScanIndexForward()
+			if (got == nil) != (tt.wantForward == nil) {
+				t.Errorf("ScanIndexForward() = %v, want %v", got, tt.wantForward)
+				return
+			}
+
+			if got != nil && tt.wantForward != nil && *got != *tt.wantForward {
+				t.Errorf("ScanIndexForward() = %v, want %v", *got, *tt.wantForward)
+			}
+		})
+	}
+}
+
+func TestAdapter_SortBuilder(t *testing.T) {
+	tests := []struct {
+		name        string
+		buildSort   func() sift.SortExpression
+		wantForward *bool
+	}{
+		{
+			name: "sort ascending",
+			buildSort: func() sift.SortExpression {
+				return sift.Sort("created_at", sift.SortAsc)
+			},
+			wantForward: boolPtr(true),
+		},
+		{
+			name: "sort descending",
+			buildSort: func() sift.SortExpression {
+				return sift.Sort("created_at", sift.SortDesc)
+			},
+			wantForward: boolPtr(false),
+		},
+		{
+			name: "sort with then by",
+			buildSort: func() sift.SortExpression {
+				return sift.Sort("created_at", sift.SortDesc).ThenBy("name", sift.SortAsc)
+			},
+			wantForward: boolPtr(false), // Only first field used
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adapter := NewAdapter()
+			sortExpr := tt.buildSort()
+			err := sift.SortThru(context.Background(), adapter, sortExpr)
+			if err != nil {
+				t.Fatalf("SortThru() error = %v", err)
+			}
+
+			got := adapter.ScanIndexForward()
+			if (got == nil) != (tt.wantForward == nil) {
+				t.Errorf("ScanIndexForward() = %v, want %v", got, tt.wantForward)
+				return
+			}
+
+			if got != nil && tt.wantForward != nil && *got != *tt.wantForward {
+				t.Errorf("ScanIndexForward() = %v, want %v", *got, *tt.wantForward)
+			}
+		})
+	}
+}
+
+func boolPtr(b bool) *bool {
+	return &b
+}

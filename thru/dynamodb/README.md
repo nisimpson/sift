@@ -74,6 +74,81 @@ All sift operations are supported:
 
 Logical operations (AND, OR, NOT) are fully supported.
 
+## Sorting
+
+The DynamoDB adapter supports sorting through the `ScanIndexForward` parameter. This controls the sort direction when querying a table or index with a sort key.
+
+### Basic Sorting
+
+```go
+// Sort by created_at in descending order (newest first)
+sort := sift.Sort("created_at", sift.SortDesc)
+
+adapter := siftddb.NewAdapter()
+sift.SortThru(context.Background(), adapter, sort)
+
+// Use with Query
+result, err := client.Query(ctx, &dynamodb.QueryInput{
+    TableName:              aws.String("Users"),
+    KeyConditionExpression: aws.String("pk = :pk"),
+    ScanIndexForward:       adapter.ScanIndexForward(), // false for descending
+})
+```
+
+### Combining Filtering and Sorting
+
+```go
+// Filter and sort together
+filter := sift.Eq("status", "active")
+sort := sift.Sort("created_at", sift.SortDesc)
+
+adapter := siftddb.NewAdapter()
+sift.Thru(ctx, adapter, filter)
+sift.SortThru(ctx, adapter, sort)
+
+expr, _ := adapter.Expression()
+
+result, err := client.Query(ctx, &dynamodb.QueryInput{
+    TableName:                 aws.String("Users"),
+    KeyConditionExpression:    aws.String("pk = :pk"),
+    FilterExpression:          expr.Condition(),
+    ExpressionAttributeNames:  expr.Names(),
+    ExpressionAttributeValues: expr.Values(),
+    ScanIndexForward:          adapter.ScanIndexForward(),
+})
+```
+
+### DynamoDB Sorting Limitations
+
+DynamoDB has specific limitations for sorting:
+
+1. **Sort Key Only**: DynamoDB can only sort by the sort key of the table or index being queried
+2. **Single Field**: Only the first sort field in a `SortList` is used
+3. **Query Operations**: Sorting only applies to Query operations, not Scan operations
+
+The adapter handles these limitations by:
+- Setting `ScanIndexForward` based on the first sort field's direction
+- Ignoring additional sort fields (DynamoDB doesn't support multi-field sorting)
+- Returning `nil` if no sort was specified
+
+```go
+// Multiple sort fields - only first is used
+sort := sift.Sort("created_at", sift.SortDesc).
+    ThenBy("name", sift.SortAsc)
+
+adapter := siftddb.NewAdapter()
+sift.SortThru(ctx, adapter, sort)
+
+// ScanIndexForward will be false (from created_at DESC)
+// The name field is ignored
+forward := adapter.ScanIndexForward() // false
+```
+
+### Sort Directions
+
+- `sift.SortAsc` → `ScanIndexForward = true` (ascending order)
+- `sift.SortDesc` → `ScanIndexForward = false` (descending order)
+
 ## Type Handling
 
 The adapter automatically parses string values into appropriate DynamoDB types:

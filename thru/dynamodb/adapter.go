@@ -32,10 +32,11 @@ type Config struct {
 // It accumulates the filter expression, attribute names, and attribute values
 // during traversal.
 type Adapter struct {
-	builder expression.Builder
-	cond    expression.ConditionBuilder
-	hasCond bool
-	config  *Config
+	builder          expression.Builder
+	cond             expression.ConditionBuilder
+	hasCond          bool
+	config           *Config
+	scanIndexForward *bool // nil means not set, true = ascending, false = descending
 }
 
 // NewAdapter creates a new DynamoDB adapter with default configuration (auto-detect types).
@@ -70,6 +71,8 @@ func (a *Adapter) Evaluator(ctx context.Context) *sift.Evaluator {
 		OrEvaluator:        a,
 		NotEvaluator:       a,
 		CustomEvaluator:    a,
+		SortFieldEvaluator: a,
+		SortListEvaluator:  a,
 	}
 }
 
@@ -238,4 +241,45 @@ func parseValue(s string) expression.ValueBuilder {
 
 	// Fall back to string
 	return expression.Value(s)
+}
+
+// EvaluateSortField sets the ScanIndexForward parameter based on the sort direction.
+// DynamoDB only supports sorting by a single field (the sort key), so this method
+// only processes the first sort field and ignores subsequent fields.
+//
+// Note: DynamoDB sorting is limited to the sort key of the table or index being queried.
+// This method sets the ScanIndexForward parameter which controls the sort direction:
+// - true (ascending): items are returned in ascending order by sort key
+// - false (descending): items are returned in descending order by sort key
+func (a *Adapter) EvaluateSortField(ctx context.Context, field *sift.SortField) error {
+	// Only set if not already set (DynamoDB only supports single field sorting)
+	if a.scanIndexForward == nil {
+		forward := field.Direction == sift.SortAsc
+		a.scanIndexForward = &forward
+	}
+	return nil
+}
+
+// EvaluateSortList processes a list of sort fields.
+// DynamoDB only supports sorting by a single field (the sort key), so this method
+// only processes the first sort field and ignores subsequent fields.
+func (a *Adapter) EvaluateSortList(ctx context.Context, list *sift.SortList) error {
+	if len(list.Fields) > 0 {
+		return a.EvaluateSortField(ctx, list.Fields[0])
+	}
+	return nil
+}
+
+// ScanIndexForward returns the ScanIndexForward parameter for DynamoDB Query operations.
+// Returns nil if no sort was specified, true for ascending order, false for descending order.
+//
+// Usage with AWS SDK v2:
+//
+//	adapter := dynamodb.NewAdapter()
+//	sift.SortThru(ctx, adapter, sortExpr)
+//	if forward := adapter.ScanIndexForward(); forward != nil {
+//	    input.ScanIndexForward = forward
+//	}
+func (a *Adapter) ScanIndexForward() *bool {
+	return a.scanIndexForward
 }

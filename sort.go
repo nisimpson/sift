@@ -35,6 +35,17 @@ func (s *SortField) accept(ctx context.Context, evaluator *Evaluator) error {
 	return evaluator.SortFieldEvaluator.EvaluateSortField(ctx, s)
 }
 
+// ThenBy creates a new SortBuilder starting with this field and adding another field.
+// This allows chaining sort operations starting from a SortField.
+//
+// Example:
+//
+//	field := &sift.SortField{Name: "created_at", Direction: sift.SortDesc}
+//	sort := field.ThenBy("name", sift.SortAsc)
+func (s SortField) ThenBy(name string, direction SortDirection) SortBuilder {
+	return Sort(s.Name, s.Direction).ThenBy(name, direction)
+}
+
 // SortList represents multiple sort fields applied in order.
 type SortList struct {
 	Fields []*SortField
@@ -69,58 +80,4 @@ type SortListEvaluator interface {
 func SortThru(ctx context.Context, adapter Adapter, expr SortExpression) error {
 	evaluator := adapter.Evaluator(ctx)
 	return expr.accept(ctx, evaluator)
-}
-
-// SortBuilder provides a fluent API for building sort expressions.
-type SortBuilder struct {
-	fields []*SortField
-}
-
-// Sort creates a new sort expression with a single field.
-//
-// Example:
-//
-//	sort := sift.Sort("created_at", sift.SortDesc)
-func Sort(name string, direction SortDirection) *SortBuilder {
-	return &SortBuilder{
-		fields: []*SortField{{Name: name, Direction: direction}},
-	}
-}
-
-// ThenBy adds another sort field to the expression.
-// Fields are applied in the order they are added.
-//
-// Example:
-//
-//	sort := sift.Sort("created_at", sift.SortDesc).ThenBy("name", sift.SortAsc)
-func (b *SortBuilder) ThenBy(name string, direction SortDirection) *SortBuilder {
-	b.fields = append(b.fields, &SortField{Name: name, Direction: direction})
-	return b
-}
-
-// NullsLast sets the NullsLast flag on the most recently added field.
-// This controls whether NULL values appear last in the sort order.
-// Note: Not all backends support this feature.
-//
-// Example:
-//
-//	sort := sift.Sort("email", sift.SortAsc).NullsLast()
-func (b *SortBuilder) NullsLast() *SortBuilder {
-	if len(b.fields) > 0 {
-		b.fields[len(b.fields)-1].NullsLast = true
-	}
-	return b
-}
-
-// Build returns the sort expression as a SortList.
-// This is useful when you need to pass the expression to functions
-// that expect a SortExpression interface.
-func (b *SortBuilder) Build() *SortList {
-	return &SortList{Fields: b.fields}
-}
-
-// accept implements SortExpression for SortBuilder.
-// This allows SortBuilder to be used directly without calling Build().
-func (b *SortBuilder) accept(ctx context.Context, evaluator *Evaluator) error {
-	return b.Build().accept(ctx, evaluator)
 }

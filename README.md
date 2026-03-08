@@ -1,6 +1,6 @@
 # Sift
 
-A universal query filter library for Go that lets you write filter logic once and use it across multiple backends.
+A universal query filter and sort library for Go that lets you write filter and sort logic once and use it across multiple backends.
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/nisimpson/sift.svg)](https://pkg.go.dev/github.com/nisimpson/sift)
 [![Go Report Card](https://goreportcard.com/badge/github.com/nisimpson/sift)](https://goreportcard.com/report/github.com/nisimpson/sift)
@@ -8,16 +8,16 @@ A universal query filter library for Go that lets you write filter logic once an
 
 ## The Problem
 
-When building applications with multiple data backends (DynamoDB, SQL, MongoDB, Elasticsearch), you end up writing the same filtering logic multiple times in different query languages. This leads to:
+When building applications with multiple data backends (DynamoDB, SQL, MongoDB, Elasticsearch), you end up writing the same filtering and sorting logic multiple times in different query languages. This leads to:
 
 - Code duplication across data access layers
-- Inconsistent filter capabilities between backends
+- Inconsistent filter and sort capabilities between backends
 - Difficulty switching or adding new backends
 - Complex translation logic scattered throughout the codebase
 
 ## The Solution
 
-Sift provides a universal filter expression language using an Abstract Syntax Tree (AST). Define your filters once, then implement backend-specific evaluators to translate them into native queries.
+Sift provides a universal filter and sort expression language using an Abstract Syntax Tree (AST). Define your filters and sorts once, then implement backend-specific evaluators to translate them into native queries.
 
 ```go
 // Define a filter once
@@ -106,6 +106,25 @@ filter := sift.Eq("status", "active").
 // The builder returns an ExpressionBuilder which implements Expression
 // and can be used directly with Thru()
 err := sift.Thru(ctx, adapter, filter)
+```
+
+### Sorting
+
+Create sort expressions using the fluent builder API:
+
+```go
+// Sort by a single field
+sort := sift.Sort("created_at", sift.SortDesc)
+
+// Sort by multiple fields
+sort := sift.Sort("created_at", sift.SortDesc).
+    ThenBy("name", sift.SortAsc)
+
+// Control NULL ordering
+sort := sift.Sort("email", sift.SortAsc).NullsLast()
+
+// Use with adapter
+err := sift.SortThru(ctx, adapter, sort)
 ```
 
 ### 2. Implement an Adapter
@@ -247,6 +266,97 @@ This format is ideal for URL query strings:
 
 ```
 GET /users?filter=and(eq(status,active),gt(age,18))
+```
+
+## Sorting
+
+Sift provides sorting support through the `SortThru()` function, following the same visitor pattern as filtering.
+
+### Basic Sorting
+
+```go
+// Sort by a single field
+sort := sift.Sort("created_at", sift.SortDesc)
+
+adapter := sql.NewAdapter()
+sift.SortThru(ctx, adapter, sort)
+
+query := fmt.Sprintf("SELECT * FROM users ORDER BY %s", adapter.OrderBy())
+// SELECT * FROM users ORDER BY created_at DESC
+```
+
+### Multiple Sort Fields
+
+Use `ThenBy()` to add additional sort fields:
+
+```go
+// Sort by created_at DESC, then by name ASC
+sort := sift.Sort("created_at", sift.SortDesc).
+    ThenBy("name", sift.SortAsc)
+
+adapter := sql.NewAdapter()
+sift.SortThru(ctx, adapter, sort)
+// ORDER BY created_at DESC, name ASC
+```
+
+### NULL Handling
+
+Control where NULL values appear in the sort order:
+
+```go
+// NULLs appear last in ascending sort
+sort := sift.Sort("email", sift.SortAsc).NullsLast()
+
+// Can be applied to specific fields in multi-field sorts
+sort := sift.Sort("created_at", sift.SortDesc).
+    ThenBy("email", sift.SortAsc).NullsLast().
+    ThenBy("name", sift.SortAsc)
+// Only email field has NullsLast
+```
+
+### Combining Filtering and Sorting
+
+Use both filtering and sorting together:
+
+```go
+// Filter and sort
+filter := sift.Eq("status", "active").And(sift.Gt("age", 18))
+sort := sift.Sort("created_at", sift.SortDesc).ThenBy("name", sift.SortAsc)
+
+adapter := sql.NewAdapter()
+sift.Thru(ctx, adapter, filter)
+sift.SortThru(ctx, adapter, sort)
+
+query := fmt.Sprintf("SELECT * FROM users WHERE %s ORDER BY %s",
+    adapter.Query(), adapter.OrderBy())
+// SELECT * FROM users WHERE (status = $1) AND (age > $2) ORDER BY created_at DESC, name ASC
+```
+
+### Sort Directions
+
+Two sort directions are available:
+
+- `sift.SortAsc` - Ascending order (A-Z, 0-9, oldest-newest)
+- `sift.SortDesc` - Descending order (Z-A, 9-0, newest-oldest)
+
+### Adapter Support
+
+Adapters choose whether to support sorting by implementing the sort evaluator interfaces:
+
+```go
+func (a *Adapter) Evaluator(ctx context.Context) *sift.Evaluator {
+    return &sift.Evaluator{
+        // Filtering
+        ConditionEvaluator: a,
+        AndEvaluator:       a,
+        // Sorting (optional)
+        SortListEvaluator:  a,
+    }
+}
+
+func (a *Adapter) EvaluateSortList(ctx context.Context, list *sift.SortList) error {
+    // Translate sort fields to backend-specific syntax
+}
 ```
 
 ## Custom Expressions

@@ -224,14 +224,14 @@ func TestExpressionBuilderComplexExpressions(t *testing.T) {
 // TestExpressionBuilderWithParse tests using builder with parsed expressions
 func TestExpressionBuilderWithParse(t *testing.T) {
 	// Parse an existing filter
-	parsed, err := Parse("eq(status,active)", nil)
+	query, err := ParseQuery("filter(eq(status,active))", nil)
 	if err != nil {
-		t.Fatalf("Parse() error = %v", err)
+		t.Fatalf("ParseQuery() error = %v", err)
 	}
 
 	// Extend it with builder
 	newCond := &Condition{Name: "age", Operation: OperationGT, Value: "18"}
-	builder := NewExpressionBuilder(parsed).And(newCond)
+	builder := NewExpressionBuilder(query.Filter).And(newCond)
 
 	// Verify it's an AndOperation
 	and, ok := builder.expr.(*AndOperation)
@@ -244,12 +244,12 @@ func TestExpressionBuilderWithParse(t *testing.T) {
 	}
 
 	// Format and check
-	formatted, err := Format(builder, nil)
+	formatted, err := Format(nil, WithFilter(builder))
 	if err != nil {
 		t.Fatalf("Format() error = %v", err)
 	}
 
-	expected := "and(eq(status,active),gt(age,18))"
+	expected := "filter(and(eq(status,active),gt(age,18)))"
 	if formatted != expected {
 		t.Errorf("Format() = %v, want %v", formatted, expected)
 	}
@@ -538,12 +538,12 @@ func TestBuilderConvenienceFunctionsWithThru(t *testing.T) {
 func TestBuilderConvenienceFunctionsWithFormat(t *testing.T) {
 	builder := Eq("status", "active").And(Gt("age", 18))
 
-	formatted, err := Format(builder, nil)
+	formatted, err := Format(nil, WithFilter(builder))
 	if err != nil {
 		t.Fatalf("Format() error = %v", err)
 	}
 
-	expected := "and(eq(status,active),gt(age,18))"
+	expected := "filter(and(eq(status,active),gt(age,18)))"
 	if formatted != expected {
 		t.Errorf("Format() = %v, want %v", formatted, expected)
 	}

@@ -324,15 +324,15 @@ func ExampleAdapter_customExpressions_serialization() {
 	filter := siftddb.Size("tags", sift.OperationGT, 5)
 
 	// Serialize to string
-	str, _ := sift.Format(filter, registry)
+	str, _ := sift.FormatFilter(filter, registry)
 	fmt.Printf("Serialized: %s\n", str)
 
-	// Parse back
-	parsed, _ := sift.Parse(str, registry)
+	// Parse back (wrap with filter() for ParseQuery)
+	query, _ := sift.ParseQuery("filter("+str+")", registry)
 
 	// Use with adapter
 	adapter := siftddb.NewAdapter()
-	sift.Thru(context.Background(), adapter, sift.WithFilter(parsed))
+	sift.Thru(context.Background(), adapter, sift.WithFilter(query.Filter))
 
 	expr, _ := adapter.Expression()
 	fmt.Printf("Expression: %s\n", *expr.Condition())

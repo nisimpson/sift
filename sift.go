@@ -40,6 +40,7 @@ type Adapter interface {
 
 // Option represents a query option that can be applied to an adapter.
 // Options include filtering, sorting, and pagination.
+// FormatOption is a superset that also supports formatting.
 type Option interface {
 	apply(ctx context.Context, evaluator *Evaluator) error
 }
@@ -53,11 +54,6 @@ func (f filterOption) apply(ctx context.Context, evaluator *Evaluator) error {
 	return f.expr.accept(ctx, evaluator)
 }
 
-// WithFilter creates an option that applies a filter expression.
-func WithFilter(expr Expression) Option {
-	return filterOption{expr: expr}
-}
-
 // sortOption wraps a sort expression as an option.
 type sortOption struct {
 	expr SortExpression
@@ -67,11 +63,6 @@ func (s sortOption) apply(ctx context.Context, evaluator *Evaluator) error {
 	return s.expr.accept(ctx, evaluator)
 }
 
-// WithSort creates an option that applies a sort expression.
-func WithSort(expr SortExpression) Option {
-	return sortOption{expr: expr}
-}
-
 // paginationOption wraps a pagination expression as an option.
 type paginationOption struct {
 	expr PaginationExpression
@@ -79,11 +70,6 @@ type paginationOption struct {
 
 func (p paginationOption) apply(ctx context.Context, evaluator *Evaluator) error {
 	return p.expr.accept(ctx, evaluator)
-}
-
-// WithPagination creates an option that applies a pagination expression.
-func WithPagination(expr PaginationExpression) Option {
-	return paginationOption{expr: expr}
 }
 
 // Thru evaluates query options using the provided adapter.

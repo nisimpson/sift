@@ -142,27 +142,27 @@ func TestCustomExpression_Serialization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test formatting
-			formatted, err := sift.Format(tt.expr, registry)
+			formatted, err := sift.FormatFilter(tt.expr, registry)
 			if err != nil {
-				t.Fatalf("Format() error = %v", err)
+				t.Fatalf("FormatFilter() error = %v", err)
 			}
 			if formatted != tt.want {
-				t.Errorf("Format() = %v, want %v", formatted, tt.want)
+				t.Errorf("FormatFilter() = %v, want %v", formatted, tt.want)
 			}
 
 			// Test parsing (round-trip)
-			parsed, err := sift.Parse(formatted, registry)
+			query, err := sift.ParseQuery("filter("+formatted+")", registry)
 			if err != nil {
-				t.Fatalf("Parse() error = %v", err)
+				t.Fatalf("ParseQuery() error = %v", err)
 			}
 
 			// Format again to verify round-trip
-			reformatted, err := sift.Format(parsed, registry)
+			reformatted, err := sift.FormatFilter(query.Filter, registry)
 			if err != nil {
-				t.Fatalf("Format() after Parse() error = %v", err)
+				t.Fatalf("FormatFilter() after ParseQuery() error = %v", err)
 			}
 			if reformatted != tt.want {
-				t.Errorf("Round-trip Format() = %v, want %v", reformatted, tt.want)
+				t.Errorf("Round-trip FormatFilter() = %v, want %v", reformatted, tt.want)
 			}
 		})
 	}

@@ -1,0 +1,89 @@
+version: 2
+updates:
+  # Update GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # Update main module dependencies
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "go"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # Update DynamoDB adapter dependencies
+  - package-ecosystem: "gomod"
+    directory: "/thru/dynamodb"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "go"
+      - "dynamodb"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # Update SQL adapter dependencies
+  - package-ecosystem: "gomod"
+    directory: "/thru/sql"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "go"
+      - "sql"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # Update exprlang adapter dependencies
+  - package-ecosystem: "gomod"
+    directory: "/thru/exprlang"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "go"
+      - "exprlang"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # Update jsonapi adapter dependencies
+  - package-ecosystem: "gomod"
+    directory: "/thru/jsonapi"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "go"
+      - "jsonapi"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"

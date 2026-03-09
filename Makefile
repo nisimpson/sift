@@ -1,4 +1,4 @@
-.PHONY: help build test test-coverage lint fmt vet clean install-tools check publish-check publish-prepare tag-release list-tags delete-tag release-info changelog
+.PHONY: help build test test-coverage lint fmt vet clean install-tools check publish-check publish-prepare publish publish-restore tag-release list-tags delete-tag release-info changelog
 
 # Default target
 .DEFAULT_GOAL := help
@@ -284,3 +284,63 @@ version: ## Display version information
 	@echo "Git commit: $$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
 	@echo "Git branch: $$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown')"
 	@echo "Go version: $$(go version)"
+
+publish: ## Publish a new release (VERSION=x.y.z required, MODULE=path optional)
+	@if [ -z "$(VERSION)" ] || [ "$(VERSION)" = "dev" ]; then \
+		echo "Error: VERSION is required. Usage: make publish VERSION=1.0.0"; \
+		echo ""; \
+		echo "Examples:"; \
+		echo "  make publish VERSION=1.0.0                    # Publish all modules"; \
+		echo "  make publish VERSION=1.0.0 MODULE=.           # Publish main module only"; \
+		echo "  make publish VERSION=1.0.1 MODULE=thru/sql    # Publish SQL adapter only"; \
+		exit 1; \
+	fi
+	@echo "Publishing release v$(VERSION)..."
+	@echo ""
+	@echo "Step 1: Running pre-publish checks..."
+	@$(MAKE) publish-check
+	@echo ""
+	@echo "Step 2: Preparing submodules..."
+	@$(MAKE) publish-prepare VERSION=$(VERSION)
+	@echo ""
+	@echo "Step 3: Committing version changes..."
+	@git add .
+	@git commit -m "chore: prepare for v$(VERSION) release"
+	@echo ""
+	@echo "Step 4: Creating git tags..."
+	@if [ -n "$(MODULE)" ]; then \
+		$(MAKE) tag-release VERSION=$(VERSION) MODULE=$(MODULE); \
+	else \
+		$(MAKE) tag-release VERSION=$(VERSION); \
+	fi
+	@echo ""
+	@echo "Step 5: Pushing to remote..."
+	@git push origin main
+	@git push origin --tags
+	@echo ""
+	@echo "✅ Release v$(VERSION) published successfully!"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Verify on GitHub: https://github.com/nisimpson/sift/releases"
+	@echo "  2. Check pkg.go.dev (may take a few minutes to index)"
+	@echo "  3. Restore development versions: make publish-restore"
+
+publish-restore: ## Restore v0.0.0 versions for development
+	@echo "Restoring development versions..."
+	@echo ""
+	@for pkg in ./thru/dynamodb ./thru/sql ./thru/exprlang ./thru/jsonapi; do \
+		if [ -f "$$pkg/go.mod" ]; then \
+			echo "  Updating $$pkg/go.mod..."; \
+			sed -i.bak 's|require github.com/nisimpson/sift v.*|require github.com/nisimpson/sift v0.0.0|' $$pkg/go.mod; \
+			rm -f $$pkg/go.mod.bak; \
+			cd $$pkg && $(GOMOD) tidy && cd - > /dev/null || exit 1; \
+		fi; \
+	done
+	@echo ""
+	@echo "✅ Development versions restored"
+	@echo ""
+	@git add .
+	@git commit -m "chore: restore v0.0.0 for development"
+	@git push origin main
+	@echo ""
+	@echo "Ready for development!"

@@ -1,4 +1,4 @@
-.PHONY: help build test test-coverage lint fmt vet clean install-tools check publish-check tag-release
+.PHONY: help build test test-coverage lint fmt vet clean install-tools check publish-check tag-release list-tags delete-tag
 
 # Default target
 .DEFAULT_GOAL := help
@@ -153,31 +153,73 @@ publish-check: ## Check if packages are ready for publishing
 	@echo "  git tag thru/exprlang/v$(VERSION)"
 	@echo "  git tag thru/jsonapi/v$(VERSION)"
 
-tag-release: ## Create git tags for release (VERSION=x.y.z required)
+tag-release: ## Create git tags for release (VERSION=x.y.z required, MODULE=path optional)
 	@if [ -z "$(VERSION)" ] || [ "$(VERSION)" = "dev" ]; then \
 		echo "✗ VERSION is required. Usage: make tag-release VERSION=1.0.0"; \
+		echo ""; \
+		echo "Examples:"; \
+		echo "  make tag-release VERSION=1.0.0                    # Tag all modules"; \
+		echo "  make tag-release VERSION=1.0.0 MODULE=.           # Tag main module only"; \
+		echo "  make tag-release VERSION=1.0.1 MODULE=thru/sql    # Tag SQL adapter only"; \
 		exit 1; \
 	fi
-	@echo "Creating release tags for version $(VERSION)..."
-	@echo ""
-	@echo "Main module:"
-	@git tag -a "v$(VERSION)" -m "Release v$(VERSION)"
-	@echo "  Created tag: v$(VERSION)"
-	@echo ""
-	@echo "Submodules:"
-	@git tag -a "thru/dynamodb/v$(VERSION)" -m "Release thru/dynamodb v$(VERSION)"
-	@echo "  Created tag: thru/dynamodb/v$(VERSION)"
-	@git tag -a "thru/sql/v$(VERSION)" -m "Release thru/sql v$(VERSION)"
-	@echo "  Created tag: thru/sql/v$(VERSION)"
-	@git tag -a "thru/exprlang/v$(VERSION)" -m "Release thru/exprlang v$(VERSION)"
-	@echo "  Created tag: thru/exprlang/v$(VERSION)"
-	@git tag -a "thru/jsonapi/v$(VERSION)" -m "Release thru/jsonapi v$(VERSION)"
-	@echo "  Created tag: thru/jsonapi/v$(VERSION)"
-	@echo ""
-	@echo "✓ Tags created successfully"
+	@if [ -n "$(MODULE)" ]; then \
+		if [ "$(MODULE)" = "." ]; then \
+			echo "Creating tag for main module..."; \
+			git tag -a "v$(VERSION)" -m "Release v$(VERSION)"; \
+			echo "✓ Created tag: v$(VERSION)"; \
+		else \
+			echo "Creating tag for $(MODULE)..."; \
+			git tag -a "$(MODULE)/v$(VERSION)" -m "Release $(MODULE) v$(VERSION)"; \
+			echo "✓ Created tag: $(MODULE)/v$(VERSION)"; \
+		fi; \
+	else \
+		echo "Creating release tags for ALL modules (version $(VERSION))..."; \
+		echo ""; \
+		echo "Main module:"; \
+		git tag -a "v$(VERSION)" -m "Release v$(VERSION)"; \
+		echo "  Created tag: v$(VERSION)"; \
+		echo ""; \
+		echo "Submodules:"; \
+		git tag -a "thru/dynamodb/v$(VERSION)" -m "Release thru/dynamodb v$(VERSION)"; \
+		echo "  Created tag: thru/dynamodb/v$(VERSION)"; \
+		git tag -a "thru/sql/v$(VERSION)" -m "Release thru/sql v$(VERSION)"; \
+		echo "  Created tag: thru/sql/v$(VERSION)"; \
+		git tag -a "thru/exprlang/v$(VERSION)" -m "Release thru/exprlang v$(VERSION)"; \
+		echo "  Created tag: thru/exprlang/v$(VERSION)"; \
+		git tag -a "thru/jsonapi/v$(VERSION)" -m "Release thru/jsonapi v$(VERSION)"; \
+		echo "  Created tag: thru/jsonapi/v$(VERSION)"; \
+		echo ""; \
+		echo "✓ All tags created successfully"; \
+	fi
 	@echo ""
 	@echo "To push tags to remote:"
 	@echo "  git push origin --tags"
+	@echo ""
+	@echo "Or push specific tag:"
+	@if [ -n "$(MODULE)" ]; then \
+		if [ "$(MODULE)" = "." ]; then \
+			echo "  git push origin v$(VERSION)"; \
+		else \
+			echo "  git push origin $(MODULE)/v$(VERSION)"; \
+		fi; \
+	fi
+
+list-tags: ## List all version tags
+	@echo "All version tags:"
+	@git tag -l | grep -E '^v[0-9]|^thru/' | sort -V || echo "  No tags found"
+
+delete-tag: ## Delete a tag (TAG=v1.0.0 or TAG=thru/sql/v1.0.0 required)
+	@if [ -z "$(TAG)" ]; then \
+		echo "✗ TAG is required. Usage: make delete-tag TAG=v1.0.0"; \
+		exit 1; \
+	fi
+	@echo "Deleting tag: $(TAG)"
+	@git tag -d "$(TAG)"
+	@echo "✓ Local tag deleted"
+	@echo ""
+	@echo "To delete from remote:"
+	@echo "  git push origin :refs/tags/$(TAG)"
 
 bench: ## Run benchmarks
 	@echo "Running benchmarks..."

@@ -143,7 +143,7 @@ func TestAdapter_EvaluateCondition(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			adapter := NewAdapter()
-			err := sift.Thru(context.Background(), adapter, tt.condition)
+			err := sift.Thru(context.Background(), adapter, sift.WithFilter(tt.condition))
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("EvaluateCondition() error = %v, wantErr %v", err, tt.wantErr)
@@ -161,7 +161,7 @@ func TestAdapter_EvaluateAnd(t *testing.T) {
 	filter := sift.Eq("status", "active").And(sift.Gt("age", 18))
 
 	adapter := NewAdapter()
-	err := sift.Thru(context.Background(), adapter, filter)
+	err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 	if err != nil {
 		t.Fatalf("EvaluateAnd() error = %v", err)
 	}
@@ -176,7 +176,7 @@ func TestAdapter_EvaluateOr(t *testing.T) {
 	filter := sift.Eq("role", "admin").Or(sift.Eq("role", "moderator"))
 
 	adapter := NewAdapter()
-	err := sift.Thru(context.Background(), adapter, filter)
+	err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 	if err != nil {
 		t.Fatalf("EvaluateOr() error = %v", err)
 	}
@@ -191,7 +191,7 @@ func TestAdapter_EvaluateNot(t *testing.T) {
 	filter := sift.Eq("deleted", true).Not()
 
 	adapter := NewAdapter()
-	err := sift.Thru(context.Background(), adapter, filter)
+	err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 	if err != nil {
 		t.Fatalf("EvaluateNot() error = %v", err)
 	}
@@ -207,7 +207,7 @@ func TestAdapter_ComplexExpression(t *testing.T) {
 	filter := sift.Eq("status", "active").And(sift.Gt("age", 18)).Or(sift.Eq("role", "admin"))
 
 	adapter := NewAdapter()
-	err := sift.Thru(context.Background(), adapter, filter)
+	err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 	if err != nil {
 		t.Fatalf("ComplexExpression() error = %v", err)
 	}
@@ -223,7 +223,7 @@ func TestAdapter_NestedLogic(t *testing.T) {
 	filter := sift.Eq("verified", true).And(sift.Gt("age", 18)).Or(sift.Eq("role", "guest")).Not()
 
 	adapter := NewAdapter()
-	err := sift.Thru(context.Background(), adapter, filter)
+	err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 	if err != nil {
 		t.Fatalf("NestedLogic() error = %v", err)
 	}
@@ -275,7 +275,7 @@ func TestAdapter_CustomExpression(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			adapter := NewAdapter()
-			err := sift.Thru(context.Background(), adapter, tt.expr)
+			err := sift.Thru(context.Background(), adapter, sift.WithFilter(tt.expr))
 
 			if err != nil {
 				t.Errorf("CustomExpression() error = %v", err)
@@ -296,7 +296,7 @@ func TestAdapter_MixedCustomAndStandard(t *testing.T) {
 		Or(Predicate("all(.Comments, len(.Content) < 100)"))
 
 	adapter := NewAdapter()
-	err := sift.Thru(context.Background(), adapter, filter)
+	err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 	if err != nil {
 		t.Fatalf("MixedCustomAndStandard() error = %v", err)
 	}
@@ -350,7 +350,7 @@ func TestCustomExpression_SiftSerialization(t *testing.T) {
 
 			// Test expr-lang output
 			adapter := NewAdapter()
-			err := sift.Thru(context.Background(), adapter, tt.expr)
+			err := sift.Thru(context.Background(), adapter, sift.WithFilter(tt.expr))
 			if err != nil {
 				t.Fatalf("Failed to translate: %v", err)
 			}

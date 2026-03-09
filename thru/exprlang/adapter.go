@@ -85,12 +85,12 @@ func (a *Adapter) EvaluateCondition(ctx context.Context, node *sift.Condition) e
 // EvaluateAnd combines two expressions with logical AND.
 func (a *Adapter) EvaluateAnd(ctx context.Context, node *sift.AndOperation) error {
 	leftAdapter := NewAdapter()
-	if err := sift.Thru(ctx, leftAdapter, node.Left); err != nil {
+	if err := sift.Thru(ctx, leftAdapter, sift.WithFilter(node.Left)); err != nil {
 		return err
 	}
 
 	rightAdapter := NewAdapter()
-	if err := sift.Thru(ctx, rightAdapter, node.Right); err != nil {
+	if err := sift.Thru(ctx, rightAdapter, sift.WithFilter(node.Right)); err != nil {
 		return err
 	}
 
@@ -101,12 +101,12 @@ func (a *Adapter) EvaluateAnd(ctx context.Context, node *sift.AndOperation) erro
 // EvaluateOr combines two expressions with logical OR.
 func (a *Adapter) EvaluateOr(ctx context.Context, node *sift.OrOperation) error {
 	leftAdapter := NewAdapter()
-	if err := sift.Thru(ctx, leftAdapter, node.Left); err != nil {
+	if err := sift.Thru(ctx, leftAdapter, sift.WithFilter(node.Left)); err != nil {
 		return err
 	}
 
 	rightAdapter := NewAdapter()
-	if err := sift.Thru(ctx, rightAdapter, node.Right); err != nil {
+	if err := sift.Thru(ctx, rightAdapter, sift.WithFilter(node.Right)); err != nil {
 		return err
 	}
 
@@ -117,7 +117,7 @@ func (a *Adapter) EvaluateOr(ctx context.Context, node *sift.OrOperation) error 
 // EvaluateNot negates an expression.
 func (a *Adapter) EvaluateNot(ctx context.Context, node *sift.NotOperation) error {
 	childAdapter := NewAdapter()
-	if err := sift.Thru(ctx, childAdapter, node.Child); err != nil {
+	if err := sift.Thru(ctx, childAdapter, sift.WithFilter(node.Child)); err != nil {
 		return err
 	}
 

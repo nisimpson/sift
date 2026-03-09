@@ -101,7 +101,7 @@ func TestAdapter_EvaluateCondition(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			adapter := siftsql.NewAdapter()
-			err := sift.Thru(context.Background(), adapter, tt.expr)
+			err := sift.Thru(context.Background(), adapter, sift.WithFilter(tt.expr))
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Thru() error = %v, wantErr %v", err, tt.wantErr)
@@ -131,7 +131,7 @@ func TestAdapter_EvaluateAnd(t *testing.T) {
 	filter := sift.Eq("status", "active").And(sift.Gt("age", 18))
 
 	adapter := siftsql.NewAdapter()
-	err := sift.Thru(context.Background(), adapter, filter)
+	err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 	if err != nil {
 		t.Fatalf("Thru() error = %v", err)
 	}
@@ -151,7 +151,7 @@ func TestAdapter_EvaluateOr(t *testing.T) {
 	filter := sift.Eq("role", "admin").Or(sift.Eq("role", "moderator"))
 
 	adapter := siftsql.NewAdapter()
-	err := sift.Thru(context.Background(), adapter, filter)
+	err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 	if err != nil {
 		t.Fatalf("Thru() error = %v", err)
 	}
@@ -171,7 +171,7 @@ func TestAdapter_EvaluateNot(t *testing.T) {
 	filter := sift.Eq("deleted", "true").Not()
 
 	adapter := siftsql.NewAdapter()
-	err := sift.Thru(context.Background(), adapter, filter)
+	err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 	if err != nil {
 		t.Fatalf("Thru() error = %v", err)
 	}
@@ -194,7 +194,7 @@ func TestAdapter_ComplexExpression(t *testing.T) {
 		And(sift.Gt("age", 18))
 
 	adapter := siftsql.NewAdapter()
-	err := sift.Thru(context.Background(), adapter, filter)
+	err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 	if err != nil {
 		t.Fatalf("Thru() error = %v", err)
 	}
@@ -249,7 +249,7 @@ func TestAdapter_Dialects(t *testing.T) {
 				Dialect: tt.dialect,
 			}
 			adapter := siftsql.NewAdapterWithConfig(config)
-			err := sift.Thru(context.Background(), adapter, filter)
+			err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 			if err != nil {
 				t.Fatalf("Thru() error = %v", err)
 			}
@@ -297,7 +297,7 @@ func TestAdapter_QuoteIdentifiers(t *testing.T) {
 				QuoteIdentifiers: true,
 			}
 			adapter := siftsql.NewAdapterWithConfig(config)
-			err := sift.Thru(context.Background(), adapter, filter)
+			err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 			if err != nil {
 				t.Fatalf("Thru() error = %v", err)
 			}
@@ -317,7 +317,7 @@ func TestAdapter_CaseInsensitive(t *testing.T) {
 		CaseSensitive: false,
 	}
 	adapter := siftsql.NewAdapterWithConfig(config)
-	err := sift.Thru(context.Background(), adapter, filter)
+	err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 	if err != nil {
 		t.Fatalf("Thru() error = %v", err)
 	}
@@ -359,7 +359,7 @@ func TestAdapter_NumericTypes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			adapter := siftsql.NewAdapter()
-			err := sift.Thru(context.Background(), adapter, tt.expr)
+			err := sift.Thru(context.Background(), adapter, sift.WithFilter(tt.expr))
 			if err != nil {
 				t.Fatalf("Thru() error = %v", err)
 			}
@@ -373,5 +373,112 @@ func TestAdapter_NumericTypes(t *testing.T) {
 				t.Errorf("Arg type = %T(%v), want %T(%v)", arg, arg, tt.wantType, tt.wantType)
 			}
 		})
+	}
+}
+
+
+func TestAdapter_Pagination_Offset(t *testing.T) {
+	tests := []struct {
+		name       string
+		page       sift.PaginationExpression
+		wantLimit  int
+		wantOffset int
+	}{
+		{
+			name:       "first page",
+			page:       sift.Paginate().Size(20).Number(1),
+			wantLimit:  20,
+			wantOffset: 0,
+		},
+		{
+			name:       "second page",
+			page:       sift.Paginate().Size(20).Number(2),
+			wantLimit:  20,
+			wantOffset: 20,
+		},
+		{
+			name:       "third page with size 50",
+			page:       sift.Paginate().Size(50).Number(3),
+			wantLimit:  50,
+			wantOffset: 100,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adapter := siftsql.NewAdapter()
+			err := sift.Thru(context.Background(), adapter, sift.WithPagination(tt.page))
+			if err != nil {
+				t.Fatalf("Thru() error = %v", err)
+			}
+
+			if adapter.Limit() != tt.wantLimit {
+				t.Errorf("Limit() = %d, want %d", adapter.Limit(), tt.wantLimit)
+			}
+
+			if adapter.Offset() != tt.wantOffset {
+				t.Errorf("Offset() = %d, want %d", adapter.Offset(), tt.wantOffset)
+			}
+		})
+	}
+}
+
+func TestAdapter_Pagination_DefaultLimit(t *testing.T) {
+	config := &siftsql.Config{
+		Dialect:      siftsql.DialectPostgreSQL,
+		DefaultLimit: 100,
+	}
+	adapter := siftsql.NewAdapterWithConfig(config)
+
+	// No pagination specified - should use default
+	if adapter.Limit() != 100 {
+		t.Errorf("Limit() = %d, want 100 (default)", adapter.Limit())
+	}
+
+	// With pagination - should override default
+	page := sift.Paginate().Size(20).Number(1)
+	err := sift.Thru(context.Background(), adapter, sift.WithPagination(page))
+	if err != nil {
+		t.Fatalf("Thru() error = %v", err)
+	}
+
+	if adapter.Limit() != 20 {
+		t.Errorf("Limit() = %d, want 20 (from pagination)", adapter.Limit())
+	}
+}
+
+func TestAdapter_FilterSortPage(t *testing.T) {
+	filter := sift.Eq("status", "active").And(sift.Gt("age", 18))
+	sort := sift.Sort("created_at", sift.SortDesc).ThenBy("name", sift.SortAsc)
+	page := sift.Paginate().Size(20).Number(2)
+
+	adapter := siftsql.NewAdapter()
+	err := sift.Thru(context.Background(), adapter,
+		sift.WithFilter(filter),
+		sift.WithSort(sort),
+		sift.WithPagination(page))
+
+	if err != nil {
+		t.Fatalf("Thru() error = %v", err)
+	}
+
+	// Check filter
+	if adapter.Query() == "" {
+		t.Error("Expected query to be set")
+	}
+
+	// Check sort
+	expectedOrderBy := "created_at DESC, name ASC"
+	if adapter.OrderBy() != expectedOrderBy {
+		t.Errorf("OrderBy() = %s, want %s", adapter.OrderBy(), expectedOrderBy)
+	}
+
+	// Check pagination
+	if adapter.Limit() != 20 {
+		t.Errorf("Limit() = %d, want 20", adapter.Limit())
+	}
+
+	if adapter.Offset() != 20 {
+		t.Errorf("Offset() = %d, want 20", adapter.Offset())
 	}
 }

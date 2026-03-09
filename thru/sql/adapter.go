@@ -38,6 +38,10 @@ type Config struct {
 	// CaseSensitive determines whether string comparisons are case-sensitive.
 	// When false, uses LOWER() for case-insensitive comparisons.
 	CaseSensitive bool
+
+	// DefaultLimit is applied when no pagination is specified.
+	// Set to 0 to disable default limit (not recommended for production).
+	DefaultLimit int
 }
 
 // Adapter translates sift filter expressions into SQL WHERE clause syntax.
@@ -47,6 +51,9 @@ type Adapter struct {
 	args       []interface{}
 	paramCount int
 	config     *Config
+	orderBy    string
+	limit      int
+	offset     int
 }
 
 // NewAdapter creates a new SQL adapter with default configuration (PostgreSQL dialect).
@@ -79,10 +86,12 @@ func NewAdapterWithConfig(config *Config) *Adapter {
 // Evaluator returns a sift evaluator configured for SQL.
 func (a *Adapter) Evaluator(ctx context.Context) *sift.Evaluator {
 	return &sift.Evaluator{
-		ConditionEvaluator: a,
-		AndEvaluator:       a,
-		OrEvaluator:        a,
-		NotEvaluator:       a,
+		ConditionEvaluator:        a,
+		AndEvaluator:              a,
+		OrEvaluator:               a,
+		NotEvaluator:              a,
+		SortListEvaluator:         a,
+		OffsetPaginationEvaluator: a,
 	}
 }
 
@@ -167,13 +176,13 @@ func (a *Adapter) EvaluateCondition(ctx context.Context, node *sift.Condition) e
 // EvaluateAnd combines two conditions with logical AND.
 func (a *Adapter) EvaluateAnd(ctx context.Context, node *sift.AndOperation) error {
 	leftAdapter := NewAdapterWithConfig(a.config)
-	if err := sift.Thru(ctx, leftAdapter, node.Left); err != nil {
+	if err := sift.Thru(ctx, leftAdapter, sift.WithFilter(node.Left)); err != nil {
 		return err
 	}
 
 	rightAdapter := NewAdapterWithConfig(a.config)
 	rightAdapter.paramCount = leftAdapter.paramCount
-	if err := sift.Thru(ctx, rightAdapter, node.Right); err != nil {
+	if err := sift.Thru(ctx, rightAdapter, sift.WithFilter(node.Right)); err != nil {
 		return err
 	}
 
@@ -186,13 +195,13 @@ func (a *Adapter) EvaluateAnd(ctx context.Context, node *sift.AndOperation) erro
 // EvaluateOr combines two conditions with logical OR.
 func (a *Adapter) EvaluateOr(ctx context.Context, node *sift.OrOperation) error {
 	leftAdapter := NewAdapterWithConfig(a.config)
-	if err := sift.Thru(ctx, leftAdapter, node.Left); err != nil {
+	if err := sift.Thru(ctx, leftAdapter, sift.WithFilter(node.Left)); err != nil {
 		return err
 	}
 
 	rightAdapter := NewAdapterWithConfig(a.config)
 	rightAdapter.paramCount = leftAdapter.paramCount
-	if err := sift.Thru(ctx, rightAdapter, node.Right); err != nil {
+	if err := sift.Thru(ctx, rightAdapter, sift.WithFilter(node.Right)); err != nil {
 		return err
 	}
 
@@ -205,7 +214,7 @@ func (a *Adapter) EvaluateOr(ctx context.Context, node *sift.OrOperation) error 
 // EvaluateNot negates a condition.
 func (a *Adapter) EvaluateNot(ctx context.Context, node *sift.NotOperation) error {
 	childAdapter := NewAdapterWithConfig(a.config)
-	if err := sift.Thru(ctx, childAdapter, node.Child); err != nil {
+	if err := sift.Thru(ctx, childAdapter, sift.WithFilter(node.Child)); err != nil {
 		return err
 	}
 
@@ -275,4 +284,61 @@ func (a *Adapter) parseValue(s string) interface{} {
 
 	// Fall back to string
 	return s
+}
+
+// EvaluateSortList translates a sort list into SQL ORDER BY clause.
+func (a *Adapter) EvaluateSortList(ctx context.Context, list *sift.SortList) error {
+	if len(list.Fields) == 0 {
+		return nil
+	}
+
+	parts := make([]string, len(list.Fields))
+	for i, field := range list.Fields {
+		columnName := a.quoteIdentifier(field.Name)
+		direction := "ASC"
+		if field.Direction == sift.SortDesc {
+			direction = "DESC"
+		}
+
+		// Handle NULLS LAST if specified (PostgreSQL syntax)
+		if field.NullsLast {
+			parts[i] = fmt.Sprintf("%s %s NULLS LAST", columnName, direction)
+		} else {
+			parts[i] = fmt.Sprintf("%s %s", columnName, direction)
+		}
+	}
+
+	a.orderBy = strings.Join(parts, ", ")
+	return nil
+}
+
+// EvaluateOffsetPagination sets the LIMIT and OFFSET values.
+func (a *Adapter) EvaluateOffsetPagination(ctx context.Context, page *sift.OffsetPagination) error {
+	a.limit = page.Size
+	if page.Number > 1 {
+		a.offset = (page.Number - 1) * page.Size
+	}
+	return nil
+}
+
+// OrderBy returns the ORDER BY clause (without the ORDER BY keyword).
+// Returns empty string if no sorting was specified.
+func (a *Adapter) OrderBy() string {
+	return a.orderBy
+}
+
+// Limit returns the LIMIT value.
+// Returns the configured DefaultLimit if no pagination was specified.
+// Returns 0 if no limit should be applied.
+func (a *Adapter) Limit() int {
+	if a.limit > 0 {
+		return a.limit
+	}
+	return a.config.DefaultLimit
+}
+
+// Offset returns the OFFSET value.
+// Returns 0 if no offset was specified.
+func (a *Adapter) Offset() int {
+	return a.offset
 }

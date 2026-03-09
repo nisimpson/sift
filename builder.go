@@ -18,6 +18,16 @@ func NewExpressionBuilder(expr Expression) ExpressionBuilder {
 	return ExpressionBuilder{expr: expr}
 }
 
+// accept implements the Expression interface by delegating to the wrapped expression.
+func (b ExpressionBuilder) accept(ctx context.Context, e *Evaluator) error {
+	return b.expr.accept(ctx, e)
+}
+
+// String implements the fmt.Stringer interface by delegating to the wrapped expression.
+func (b ExpressionBuilder) String() string {
+	return b.expr.String()
+}
+
 func buildFromCondition(field string, op Operation, val any) ExpressionBuilder {
 	return NewExpressionBuilder(&Condition{
 		Name:      field,
@@ -98,15 +108,6 @@ func NotExists(field string) ExpressionBuilder {
 	})
 }
 
-// accept implements the Expression interface by delegating to the wrapped expression.
-// It allows the Builder to be used anywhere an Expression is expected.
-func (b ExpressionBuilder) accept(ctx context.Context, e *Evaluator) error {
-	return b.expr.accept(ctx, e)
-}
-
-// String returns the string representation of the wrapped expression.
-func (b ExpressionBuilder) String() string { return b.expr.String() }
-
 // And creates a new Builder that represents the logical AND of this Builder and the given expression.
 // The resulting expression will be true only if both operands evaluate to true.
 func (b ExpressionBuilder) And(expr Expression) ExpressionBuilder {
@@ -177,4 +178,52 @@ func (b SortBuilder) NullsLast() SortBuilder {
 func (b SortBuilder) accept(ctx context.Context, evaluator *Evaluator) error {
 	list := &SortList{Fields: b.fields}
 	return list.accept(ctx, evaluator)
+}
+
+// PaginationBuilder provides a fluent interface for constructing pagination expressions.
+type PaginationBuilder struct {
+	size   int
+	number *int
+	cursor *string
+}
+
+// Paginate creates a new PaginationBuilder.
+// Use Size() to set the page size, then either Number() for offset-based
+// or Cursor() for cursor-based pagination.
+//
+// Example (offset-based):
+//
+//	page := sift.Paginate().Size(20).Number(2)
+//
+// Example (cursor-based):
+//
+//	page := sift.Paginate().Size(20).Cursor("token123")
+func Paginate() PaginationBuilder {
+	return PaginationBuilder{}
+}
+
+// Size sets the page size (number of items per page).
+func (p PaginationBuilder) Size(size int) PaginationBuilder {
+	p.size = size
+	return p
+}
+
+// Number sets the page number for offset-based pagination.
+// This creates an OffsetPagination expression.
+// If Cursor() was previously called, this overrides it.
+func (p PaginationBuilder) Number(number int) PaginationExpression {
+	return &OffsetPagination{
+		Size:   p.size,
+		Number: number,
+	}
+}
+
+// Cursor sets the cursor token for cursor-based pagination.
+// This creates a CursorPagination expression.
+// If Number() was previously called, this overrides it.
+func (p PaginationBuilder) Cursor(cursor string) PaginationExpression {
+	return &CursorPagination{
+		Size:   p.size,
+		Cursor: cursor,
+	}
 }

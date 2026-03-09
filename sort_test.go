@@ -45,7 +45,7 @@ func TestSortThru_WithSortList(t *testing.T) {
 	}
 
 	adapter := newMockSortAdapter()
-	err := SortThru(context.Background(), adapter, list)
+	err := Thru(context.Background(), adapter, WithSort(list))
 
 	if err != nil {
 		t.Errorf("SortThru() error = %v", err)
@@ -64,7 +64,7 @@ func TestSortThru_WithSortBuilder(t *testing.T) {
 	sort := Sort("created_at", SortDesc).ThenBy("name", SortAsc)
 
 	adapter := newMockSortAdapter()
-	err := SortThru(context.Background(), adapter, sort)
+	err := Thru(context.Background(), adapter, WithSort(sort))
 
 	if err != nil {
 		t.Errorf("SortThru() error = %v", err)
@@ -83,7 +83,7 @@ func TestSortThru_WithSortField(t *testing.T) {
 	field := &SortField{Name: "created_at", Direction: SortDesc}
 
 	adapter := newMockSortAdapter()
-	err := SortThru(context.Background(), adapter, field)
+	err := Thru(context.Background(), adapter, WithSort(field))
 
 	if err != nil {
 		t.Errorf("SortThru() error = %v", err)
@@ -102,7 +102,7 @@ func TestSortThru_UnsupportedEvaluator(t *testing.T) {
 	adapter := &unsupportedSortAdapter{}
 	sort := Sort("created_at", SortDesc)
 
-	err := SortThru(context.Background(), adapter, sort)
+	err := Thru(context.Background(), adapter, WithSort(sort))
 	if err == nil {
 		t.Error("SortThru() should return error when sort evaluators are not populated")
 	}
@@ -123,14 +123,14 @@ func TestSortThru_PartialSupport(t *testing.T) {
 
 	// SortList should work
 	list := &SortList{Fields: []*SortField{{Name: "test", Direction: SortAsc}}}
-	err := SortThru(context.Background(), adapter, list)
+	err := Thru(context.Background(), adapter, WithSort(list))
 	if err != nil {
 		t.Errorf("SortThru() with SortList error = %v", err)
 	}
 
 	// SortField should fail gracefully
 	field := &SortField{Name: "test", Direction: SortAsc}
-	err = SortThru(context.Background(), adapter, field)
+	err = Thru(context.Background(), adapter, WithSort(field))
 	if err == nil {
 		t.Error("SortThru() with SortField should return error when SortFieldEvaluator is nil")
 	}

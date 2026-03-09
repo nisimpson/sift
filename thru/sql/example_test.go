@@ -14,7 +14,7 @@ func Example() {
 
 	// Create SQL adapter
 	adapter := siftsql.NewAdapter()
-	sift.Thru(context.Background(), adapter, filter)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	fmt.Printf("Query: %s\n", adapter.Query())
 	fmt.Printf("Args: %v\n", adapter.Args())
@@ -31,7 +31,7 @@ func ExampleAdapter_complexFilter() {
 		Or(sift.Eq("role", "admin"))
 
 	adapter := siftsql.NewAdapter()
-	sift.Thru(context.Background(), adapter, filter)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	fmt.Printf("Query: %s\n", adapter.Query())
 	fmt.Printf("Args: %v\n", adapter.Args())
@@ -51,7 +51,7 @@ func ExampleAdapter_stringOperations() {
 		})
 
 	adapter := siftsql.NewAdapter()
-	sift.Thru(context.Background(), adapter, filter)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	fmt.Printf("Query: %s\n", adapter.Query())
 	fmt.Printf("Args: %v\n", adapter.Args())
@@ -66,7 +66,7 @@ func ExampleAdapter_existenceChecks() {
 	filter := sift.Exists("email").And(sift.NotExists("deleted_at"))
 
 	adapter := siftsql.NewAdapter()
-	sift.Thru(context.Background(), adapter, filter)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	fmt.Printf("Query: %s\n", adapter.Query())
 
@@ -79,7 +79,7 @@ func ExampleAdapter_withDatabase() {
 	filter := sift.Eq("status", "active").And(sift.Gt("age", 18))
 
 	adapter := siftsql.NewAdapter()
-	sift.Thru(context.Background(), adapter, filter)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	// Use with database/sql (pseudo-code)
 	query := fmt.Sprintf("SELECT * FROM users WHERE %s", adapter.Query())
@@ -104,7 +104,7 @@ func ExampleNewAdapterWithConfig_mysql() {
 	filter := sift.Eq("user_name", "john").And(sift.Gt("age", 18))
 
 	adapter := siftsql.NewAdapterWithConfig(config)
-	sift.Thru(context.Background(), adapter, filter)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	fmt.Printf("Query: %s\n", adapter.Query())
 	fmt.Printf("Args: %v\n", adapter.Args())
@@ -123,7 +123,7 @@ func ExampleNewAdapterWithConfig_sqlserver() {
 	filter := sift.Eq("status", "active").And(sift.Gt("age", 18))
 
 	adapter := siftsql.NewAdapterWithConfig(config)
-	sift.Thru(context.Background(), adapter, filter)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	fmt.Printf("Query: %s\n", adapter.Query())
 	fmt.Printf("Args: %v\n", adapter.Args())
@@ -143,7 +143,7 @@ func ExampleAdapter_caseInsensitive() {
 	filter := sift.Contains("email", "@EXAMPLE.COM")
 
 	adapter := siftsql.NewAdapterWithConfig(config)
-	sift.Thru(context.Background(), adapter, filter)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	fmt.Printf("Query: %s\n", adapter.Query())
 
@@ -160,7 +160,7 @@ func ExampleAdapter_inOperation() {
 	}
 
 	adapter := siftsql.NewAdapter()
-	sift.Thru(context.Background(), adapter, filter)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	fmt.Printf("Query: %s\n", adapter.Query())
 	fmt.Printf("Args: %v\n", adapter.Args())
@@ -175,7 +175,7 @@ func ExampleAdapter_betweenOperation() {
 	filter := sift.Between("age", 18, 65)
 
 	adapter := siftsql.NewAdapter()
-	sift.Thru(context.Background(), adapter, filter)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	fmt.Printf("Query: %s\n", adapter.Query())
 	fmt.Printf("Args: %v\n", adapter.Args())
@@ -190,7 +190,7 @@ func ExampleAdapter_notOperation() {
 	filter := sift.Eq("deleted", "true").Not()
 
 	adapter := siftsql.NewAdapter()
-	sift.Thru(context.Background(), adapter, filter)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	fmt.Printf("Query: %s\n", adapter.Query())
 	fmt.Printf("Args: %v\n", adapter.Args())

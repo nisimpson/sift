@@ -37,6 +37,8 @@ type Adapter struct {
 	hasCond          bool
 	config           *Config
 	scanIndexForward *bool // nil means not set, true = ascending, false = descending
+	limit            *int32
+	token            string
 }
 
 // NewAdapter creates a new DynamoDB adapter with default configuration (auto-detect types).
@@ -66,13 +68,14 @@ func NewAdapterWithConfig(config *Config) *Adapter {
 // Evaluator returns a sift evaluator configured for DynamoDB.
 func (a *Adapter) Evaluator(ctx context.Context) *sift.Evaluator {
 	return &sift.Evaluator{
-		ConditionEvaluator: a,
-		AndEvaluator:       a,
-		OrEvaluator:        a,
-		NotEvaluator:       a,
-		CustomEvaluator:    a,
-		SortFieldEvaluator: a,
-		SortListEvaluator:  a,
+		ConditionEvaluator:       a,
+		AndEvaluator:             a,
+		OrEvaluator:              a,
+		NotEvaluator:             a,
+		CustomEvaluator:          a,
+		SortFieldEvaluator:       a,
+		SortListEvaluator:        a,
+		CursorPaginationEvaluator: a,
 	}
 }
 
@@ -126,12 +129,12 @@ func (a *Adapter) EvaluateCondition(ctx context.Context, node *sift.Condition) e
 // EvaluateAnd combines two conditions with logical AND.
 func (a *Adapter) EvaluateAnd(ctx context.Context, node *sift.AndOperation) error {
 	leftAdapter := &Adapter{config: a.config}
-	if err := sift.Thru(ctx, leftAdapter, node.Left); err != nil {
+	if err := sift.Thru(ctx, leftAdapter, sift.WithFilter(node.Left)); err != nil {
 		return err
 	}
 
 	rightAdapter := &Adapter{config: a.config}
-	if err := sift.Thru(ctx, rightAdapter, node.Right); err != nil {
+	if err := sift.Thru(ctx, rightAdapter, sift.WithFilter(node.Right)); err != nil {
 		return err
 	}
 
@@ -143,12 +146,12 @@ func (a *Adapter) EvaluateAnd(ctx context.Context, node *sift.AndOperation) erro
 // EvaluateOr combines two conditions with logical OR.
 func (a *Adapter) EvaluateOr(ctx context.Context, node *sift.OrOperation) error {
 	leftAdapter := &Adapter{config: a.config}
-	if err := sift.Thru(ctx, leftAdapter, node.Left); err != nil {
+	if err := sift.Thru(ctx, leftAdapter, sift.WithFilter(node.Left)); err != nil {
 		return err
 	}
 
 	rightAdapter := &Adapter{config: a.config}
-	if err := sift.Thru(ctx, rightAdapter, node.Right); err != nil {
+	if err := sift.Thru(ctx, rightAdapter, sift.WithFilter(node.Right)); err != nil {
 		return err
 	}
 
@@ -160,7 +163,7 @@ func (a *Adapter) EvaluateOr(ctx context.Context, node *sift.OrOperation) error 
 // EvaluateNot negates a condition.
 func (a *Adapter) EvaluateNot(ctx context.Context, node *sift.NotOperation) error {
 	childAdapter := &Adapter{config: a.config}
-	if err := sift.Thru(ctx, childAdapter, node.Child); err != nil {
+	if err := sift.Thru(ctx, childAdapter, sift.WithFilter(node.Child)); err != nil {
 		return err
 	}
 
@@ -276,10 +279,47 @@ func (a *Adapter) EvaluateSortList(ctx context.Context, list *sift.SortList) err
 // Usage with AWS SDK v2:
 //
 //	adapter := dynamodb.NewAdapter()
-//	sift.SortThru(ctx, adapter, sortExpr)
+//	sift.Thru(ctx, adapter, sift.WithSort(sortExpr))
 //	if forward := adapter.ScanIndexForward(); forward != nil {
 //	    input.ScanIndexForward = forward
 //	}
 func (a *Adapter) ScanIndexForward() *bool {
 	return a.scanIndexForward
+}
+
+// EvaluateCursorPagination sets the Limit and cursor token for DynamoDB pagination.
+func (a *Adapter) EvaluateCursorPagination(ctx context.Context, page *sift.CursorPagination) error {
+	if page.Size > 0 {
+		limit := int32(page.Size)
+		a.limit = &limit
+	}
+	a.token = page.Cursor
+	return nil
+}
+
+// Limit returns the Limit parameter for DynamoDB Query/Scan operations.
+// Returns nil if no pagination was specified.
+//
+// Usage with AWS SDK v2:
+//
+//	adapter := dynamodb.NewAdapter()
+//	sift.Thru(ctx, adapter, sift.WithPagination(page))
+//	input.Limit = adapter.Limit()
+func (a *Adapter) Limit() *int32 {
+	return a.limit
+}
+
+// Token returns the cursor token for pagination.
+// Returns empty string if no cursor was specified.
+// The application is responsible for encoding/decoding the token to/from LastEvaluatedKey.
+//
+// Usage with AWS SDK v2:
+//
+//	adapter := dynamodb.NewAdapter()
+//	sift.Thru(ctx, adapter, sift.WithPagination(page))
+//	if token := adapter.Token(); token != "" {
+//	    input.ExclusiveStartKey = decodeToken(token)
+//	}
+func (a *Adapter) Token() string {
+	return a.token
 }

@@ -34,7 +34,7 @@ func TestCustomExpression_Size(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			adapter := dynamodb.NewAdapter()
-			err := sift.Thru(context.Background(), adapter, tt.expr)
+			err := sift.Thru(context.Background(), adapter, sift.WithFilter(tt.expr))
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Size() error = %v, wantErr %v", err, tt.wantErr)
@@ -78,7 +78,7 @@ func TestCustomExpression_AttributeType(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			adapter := dynamodb.NewAdapter()
-			err := sift.Thru(context.Background(), adapter, tt.expr)
+			err := sift.Thru(context.Background(), adapter, sift.WithFilter(tt.expr))
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("IsAttributeType() error = %v, wantErr %v", err, tt.wantErr)
@@ -101,7 +101,7 @@ func TestCustomExpression_MixedWithStandard(t *testing.T) {
 	filter := sift.Eq("status", "active").And(dynamodb.Size("tags", sift.OperationGT, 3))
 
 	adapter := dynamodb.NewAdapter()
-	err := sift.Thru(context.Background(), adapter, filter)
+	err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 	if err != nil {
 		t.Fatalf("Mixed expression error = %v", err)
 	}

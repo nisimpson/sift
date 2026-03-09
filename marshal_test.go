@@ -550,7 +550,7 @@ func TestCustomExpressionRegistry(t *testing.T) {
 		expr := NewCustomExpression(custom)
 
 		adapter := newMockAdapter()
-		err := Thru(context.Background(), adapter, expr)
+		err := Thru(context.Background(), adapter, WithFilter(expr))
 		if err != nil {
 			t.Errorf("Thru() error = %v", err)
 		}

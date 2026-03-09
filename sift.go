@@ -24,6 +24,8 @@ type Evaluator struct {
 	CustomEvaluator
 	SortFieldEvaluator
 	SortListEvaluator
+	OffsetPaginationEvaluator
+	CursorPaginationEvaluator
 }
 
 // Adapter provides the bridge between the sift filter AST and backend-specific implementations.
@@ -36,13 +38,76 @@ type Adapter interface {
 	Evaluator(ctx context.Context) *Evaluator
 }
 
-// Thru evaluates a filter expression using the provided evaluator.
-// This is the main entry point for processing filters.
-func Thru(ctx context.Context, adapter Adapter, filter Expression) error {
+// Option represents a query option that can be applied to an adapter.
+// Options include filtering, sorting, and pagination.
+type Option interface {
+	apply(ctx context.Context, evaluator *Evaluator) error
+}
+
+// filterOption wraps a filter expression as an option.
+type filterOption struct {
+	expr Expression
+}
+
+func (f filterOption) apply(ctx context.Context, evaluator *Evaluator) error {
+	return f.expr.accept(ctx, evaluator)
+}
+
+// WithFilter creates an option that applies a filter expression.
+func WithFilter(expr Expression) Option {
+	return filterOption{expr: expr}
+}
+
+// sortOption wraps a sort expression as an option.
+type sortOption struct {
+	expr SortExpression
+}
+
+func (s sortOption) apply(ctx context.Context, evaluator *Evaluator) error {
+	return s.expr.accept(ctx, evaluator)
+}
+
+// WithSort creates an option that applies a sort expression.
+func WithSort(expr SortExpression) Option {
+	return sortOption{expr: expr}
+}
+
+// paginationOption wraps a pagination expression as an option.
+type paginationOption struct {
+	expr PaginationExpression
+}
+
+func (p paginationOption) apply(ctx context.Context, evaluator *Evaluator) error {
+	return p.expr.accept(ctx, evaluator)
+}
+
+// WithPagination creates an option that applies a pagination expression.
+func WithPagination(expr PaginationExpression) Option {
+	return paginationOption{expr: expr}
+}
+
+// Thru evaluates query options using the provided adapter.
+// This is the main entry point for processing filters, sorts, and pagination.
+//
+// Example:
+//
+//	sift.Thru(ctx, adapter,
+//	    sift.WithFilter(filter),
+//	    sift.WithSort(sort),
+//	    sift.WithPagination(page))
+func Thru(ctx context.Context, adapter Adapter, options ...Option) error {
 	if adapter == nil {
 		return fmt.Errorf("adapter is nil")
 	}
-	return filter.accept(ctx, adapter.Evaluator(ctx))
+	
+	evaluator := adapter.Evaluator(ctx)
+	for _, opt := range options {
+		if err := opt.apply(ctx, evaluator); err != nil {
+			return err
+		}
+	}
+	
+	return nil
 }
 
 // Expression represents an expression in the filter AST.

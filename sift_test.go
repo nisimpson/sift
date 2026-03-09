@@ -93,7 +93,7 @@ func TestThru(t *testing.T) {
 			Operation: OperationEQ,
 			Value:     "value",
 		}
-		err := Thru(ctx, nil, filter)
+		err := Thru(ctx, nil, WithFilter(filter))
 		if err == nil {
 			t.Error("Expected error for nil adapter")
 		}
@@ -106,7 +106,7 @@ func TestThru(t *testing.T) {
 			Operation: OperationEQ,
 			Value:     "active",
 		}
-		err := Thru(ctx, adapter, filter)
+		err := Thru(ctx, adapter, WithFilter(filter))
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
@@ -132,7 +132,7 @@ func TestThru(t *testing.T) {
 				Value:     "18",
 			},
 		}
-		err := Thru(ctx, adapter, filter)
+		err := Thru(ctx, adapter, WithFilter(filter))
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
@@ -155,7 +155,7 @@ func TestThru(t *testing.T) {
 				Value:     "moderator",
 			},
 		}
-		err := Thru(ctx, adapter, filter)
+		err := Thru(ctx, adapter, WithFilter(filter))
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
@@ -173,7 +173,7 @@ func TestThru(t *testing.T) {
 				Value:     "true",
 			},
 		}
-		err := Thru(ctx, adapter, filter)
+		err := Thru(ctx, adapter, WithFilter(filter))
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
@@ -257,7 +257,7 @@ func TestCondition(t *testing.T) {
 			Operation: OperationEQ,
 			Value:     "value",
 		}
-		err := Thru(context.Background(), adapter, cond)
+		err := Thru(context.Background(), adapter, WithFilter(cond))
 		if err == nil {
 			t.Error("Expected error for unsupported evaluator")
 		}
@@ -289,7 +289,7 @@ func TestAndOperation(t *testing.T) {
 			Left:  &Condition{Name: "a", Operation: OperationEQ, Value: "1"},
 			Right: &Condition{Name: "b", Operation: OperationEQ, Value: "2"},
 		}
-		err := Thru(context.Background(), adapter, and)
+		err := Thru(context.Background(), adapter, WithFilter(and))
 		if err == nil {
 			t.Error("Expected error for unsupported evaluator")
 		}
@@ -321,7 +321,7 @@ func TestOrOperation(t *testing.T) {
 			Left:  &Condition{Name: "a", Operation: OperationEQ, Value: "1"},
 			Right: &Condition{Name: "b", Operation: OperationEQ, Value: "2"},
 		}
-		err := Thru(context.Background(), adapter, or)
+		err := Thru(context.Background(), adapter, WithFilter(or))
 		if err == nil {
 			t.Error("Expected error for unsupported evaluator")
 		}
@@ -348,7 +348,7 @@ func TestNotOperation(t *testing.T) {
 		not := &NotOperation{
 			Child: &Condition{Name: "a", Operation: OperationEQ, Value: "1"},
 		}
-		err := Thru(context.Background(), adapter, not)
+		err := Thru(context.Background(), adapter, WithFilter(not))
 		if err == nil {
 			t.Error("Expected error for unsupported evaluator")
 		}
@@ -378,7 +378,7 @@ func TestCustomExpression(t *testing.T) {
 		expr := NewCustomExpression(custom)
 
 		adapter := newMockAdapter()
-		err := Thru(context.Background(), adapter, expr)
+		err := Thru(context.Background(), adapter, WithFilter(expr))
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
@@ -396,7 +396,7 @@ func TestCustomExpression(t *testing.T) {
 		custom := &testCustom{field: "value"}
 		expr := NewCustomExpression(custom)
 
-		err := Thru(context.Background(), adapter, expr)
+		err := Thru(context.Background(), adapter, WithFilter(expr))
 		if err == nil {
 			t.Error("Expected error for unsupported evaluator")
 		}
@@ -454,7 +454,7 @@ func TestComplexExpressions(t *testing.T) {
 		}
 
 		adapter := newMockAdapter()
-		err := Thru(context.Background(), adapter, filter)
+		err := Thru(context.Background(), adapter, WithFilter(filter))
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}
@@ -473,7 +473,7 @@ func TestComplexExpressions(t *testing.T) {
 		}
 
 		adapter := newMockAdapter()
-		err := Thru(context.Background(), adapter, filter)
+		err := Thru(context.Background(), adapter, WithFilter(filter))
 		if err != nil {
 			t.Errorf("Unexpected error: %v", err)
 		}

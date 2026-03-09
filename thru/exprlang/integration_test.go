@@ -135,7 +135,7 @@ func TestIntegration_ComprehensiveFiltering(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Translate to expr-lang
 			adapter := exprlang.NewAdapter()
-			err := sift.Thru(context.Background(), adapter, tt.filter)
+			err := sift.Thru(context.Background(), adapter, sift.WithFilter(tt.filter))
 			if err != nil {
 				t.Fatalf("Failed to translate filter: %v", err)
 			}

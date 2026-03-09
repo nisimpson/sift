@@ -28,7 +28,7 @@ func Example() {
 
 	// Create adapter and evaluate
 	adapter := siftddb.NewAdapter()
-	err := sift.Thru(context.Background(), adapter, filter)
+	err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func ExampleAdapter_complexFilter() {
 	}
 
 	adapter := siftddb.NewAdapter()
-	sift.Thru(context.Background(), adapter, filter)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	expr, _ := adapter.Expression()
 	fmt.Printf("Expression: %s\n", *expr.Condition())
@@ -101,7 +101,7 @@ func ExampleAdapter_stringOperations() {
 	}
 
 	adapter := siftddb.NewAdapter()
-	sift.Thru(context.Background(), adapter, filter)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	expr, _ := adapter.Expression()
 	fmt.Printf("Expression: %s\n", *expr.Condition())
@@ -128,7 +128,7 @@ func ExampleAdapter_existenceChecks() {
 	}
 
 	adapter := siftddb.NewAdapter()
-	sift.Thru(context.Background(), adapter, filter)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	expr, _ := adapter.Expression()
 	fmt.Printf("Expression: %s\n", *expr.Condition())
@@ -150,7 +150,7 @@ func ExampleAdapter_withQuery() {
 	}
 
 	adapter := siftddb.NewAdapter()
-	sift.Thru(context.Background(), adapter, filter)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	expr, _ := adapter.Expression()
 
@@ -191,7 +191,7 @@ func ExampleAdapter_numericTypes() {
 	}
 
 	adapter := siftddb.NewAdapter()
-	sift.Thru(context.Background(), adapter, filter)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	expr, _ := adapter.Expression()
 	fmt.Printf("Expression: %s\n", *expr.Condition())
@@ -213,7 +213,7 @@ func ExampleAdapter_booleanType() {
 	}
 
 	adapter := siftddb.NewAdapter()
-	sift.Thru(context.Background(), adapter, filter)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	expr, _ := adapter.Expression()
 	fmt.Printf("Expression: %s\n", *expr.Condition())
@@ -250,7 +250,7 @@ func ExampleNewAdapterWithConfig() {
 	}
 
 	adapter := siftddb.NewAdapterWithConfig(config)
-	sift.Thru(context.Background(), adapter, filter)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	expr, _ := adapter.Expression()
 	fmt.Printf("Expression: %s\n", *expr.Condition())
@@ -268,7 +268,7 @@ func ExampleAdapter_customExpressions_size() {
 	filter := siftddb.Size("tags", sift.OperationGT, 3)
 
 	adapter := siftddb.NewAdapter()
-	sift.Thru(context.Background(), adapter, filter)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	expr, _ := adapter.Expression()
 	fmt.Printf("Expression: %s\n", *expr.Condition())
@@ -286,7 +286,7 @@ func ExampleAdapter_customExpressions_attributeType() {
 	filter := siftddb.IsAttributeType("metadata", "M")
 
 	adapter := siftddb.NewAdapter()
-	sift.Thru(context.Background(), adapter, filter)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	expr, _ := adapter.Expression()
 	fmt.Printf("Expression: %s\n", *expr.Condition())
@@ -305,7 +305,7 @@ func ExampleAdapter_customExpressions_mixed() {
 	filter := sift.Eq("status", "active").And(siftddb.Size("tags", sift.OperationGT, 3))
 
 	adapter := siftddb.NewAdapter()
-	sift.Thru(context.Background(), adapter, filter)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	expr, _ := adapter.Expression()
 	fmt.Printf("Expression: %s\n", *expr.Condition())
@@ -332,7 +332,7 @@ func ExampleAdapter_customExpressions_serialization() {
 
 	// Use with adapter
 	adapter := siftddb.NewAdapter()
-	sift.Thru(context.Background(), adapter, parsed)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(parsed))
 
 	expr, _ := adapter.Expression()
 	fmt.Printf("Expression: %s\n", *expr.Condition())
@@ -347,7 +347,7 @@ func ExampleAdapter_sorting() {
 	sort := sift.Sort("created_at", sift.SortDesc)
 
 	adapter := siftddb.NewAdapter()
-	sift.SortThru(context.Background(), adapter, sort)
+	sift.Thru(context.Background(), adapter, sift.WithSort(sort))
 
 	forward := adapter.ScanIndexForward()
 	fmt.Printf("ScanIndexForward: %v\n", *forward)
@@ -363,7 +363,7 @@ func ExampleAdapter_sortingAscending() {
 	sort := sift.Sort("created_at", sift.SortAsc)
 
 	adapter := siftddb.NewAdapter()
-	sift.SortThru(context.Background(), adapter, sort)
+	sift.Thru(context.Background(), adapter, sift.WithSort(sort))
 
 	forward := adapter.ScanIndexForward()
 	fmt.Printf("ScanIndexForward: %v\n", *forward)
@@ -380,8 +380,8 @@ func ExampleAdapter_filterAndSort() {
 	sort := sift.Sort("created_at", sift.SortDesc)
 
 	adapter := siftddb.NewAdapter()
-	sift.Thru(context.Background(), adapter, filter)
-	sift.SortThru(context.Background(), adapter, sort)
+	sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
+	sift.Thru(context.Background(), adapter, sift.WithSort(sort))
 
 	expr, _ := adapter.Expression()
 	forward := adapter.ScanIndexForward()
@@ -413,7 +413,7 @@ func ExampleAdapter_sortingLimitation() {
 		ThenBy("name", sift.SortAsc)
 
 	adapter := siftddb.NewAdapter()
-	sift.SortThru(context.Background(), adapter, sort)
+	sift.Thru(context.Background(), adapter, sift.WithSort(sort))
 
 	forward := adapter.ScanIndexForward()
 	fmt.Printf("ScanIndexForward: %v\n", *forward)

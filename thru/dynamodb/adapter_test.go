@@ -70,7 +70,7 @@ func TestAdapter_EvaluateCondition(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			adapter := NewAdapter()
-			err := sift.Thru(context.Background(), adapter, tt.condition)
+			err := sift.Thru(context.Background(), adapter, sift.WithFilter(tt.condition))
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Thru() error = %v, wantErr %v", err, tt.wantErr)
@@ -114,7 +114,7 @@ func TestAdapter_EvaluateAnd(t *testing.T) {
 	}
 
 	adapter := NewAdapter()
-	err := sift.Thru(context.Background(), adapter, filter)
+	err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 	if err != nil {
 		t.Fatalf("Thru() error = %v", err)
 	}
@@ -160,7 +160,7 @@ func TestAdapter_EvaluateOr(t *testing.T) {
 	}
 
 	adapter := NewAdapter()
-	err := sift.Thru(context.Background(), adapter, filter)
+	err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 	if err != nil {
 		t.Fatalf("Thru() error = %v", err)
 	}
@@ -191,7 +191,7 @@ func TestAdapter_EvaluateNot(t *testing.T) {
 	}
 
 	adapter := NewAdapter()
-	err := sift.Thru(context.Background(), adapter, filter)
+	err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 	if err != nil {
 		t.Fatalf("Thru() error = %v", err)
 	}
@@ -235,7 +235,7 @@ func TestAdapter_ComplexExpression(t *testing.T) {
 	}
 
 	adapter := NewAdapter()
-	err := sift.Thru(context.Background(), adapter, filter)
+	err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 	if err != nil {
 		t.Fatalf("Thru() error = %v", err)
 	}
@@ -307,7 +307,7 @@ func TestAdapter_NumericTypes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			adapter := NewAdapter()
-			err := sift.Thru(context.Background(), adapter, tt.condition)
+			err := sift.Thru(context.Background(), adapter, sift.WithFilter(tt.condition))
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Thru() error = %v, wantErr %v", err, tt.wantErr)
@@ -370,7 +370,7 @@ func TestAdapter_WithConfig(t *testing.T) {
 	}
 
 	adapter := NewAdapterWithConfig(config)
-	err := sift.Thru(context.Background(), adapter, filter)
+	err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 	if err != nil {
 		t.Fatalf("Thru() error = %v", err)
 	}
@@ -418,7 +418,7 @@ func TestAdapter_ConfigWithAutoDetect(t *testing.T) {
 	}
 
 	adapter := NewAdapterWithConfig(config)
-	err := sift.Thru(context.Background(), adapter, filter)
+	err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 	if err != nil {
 		t.Fatalf("Thru() error = %v", err)
 	}
@@ -446,7 +446,7 @@ func TestAdapter_StringTypeDoesNotParse(t *testing.T) {
 	}
 
 	adapter := NewAdapterWithConfig(config)
-	err := sift.Thru(context.Background(), adapter, filter)
+	err := sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 	if err != nil {
 		t.Fatalf("Thru() error = %v", err)
 	}
@@ -495,7 +495,7 @@ func TestAdapter_EvaluateSortField(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			adapter := NewAdapter()
-			err := sift.SortThru(context.Background(), adapter, tt.sortExpr)
+			err := sift.Thru(context.Background(), adapter, sift.WithSort(tt.sortExpr))
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("SortThru() error = %v, wantErr %v", err, tt.wantErr)
@@ -548,7 +548,7 @@ func TestAdapter_SortBuilder(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			adapter := NewAdapter()
 			sortExpr := tt.buildSort()
-			err := sift.SortThru(context.Background(), adapter, sortExpr)
+			err := sift.Thru(context.Background(), adapter, sift.WithSort(sortExpr))
 			if err != nil {
 				t.Fatalf("SortThru() error = %v", err)
 			}
@@ -568,4 +568,93 @@ func TestAdapter_SortBuilder(t *testing.T) {
 
 func boolPtr(b bool) *bool {
 	return &b
+}
+
+
+func TestAdapter_Pagination_Cursor(t *testing.T) {
+	tests := []struct {
+		name      string
+		page      sift.PaginationExpression
+		wantLimit *int32
+		wantToken string
+	}{
+		{
+			name:      "with size and cursor",
+			page:      sift.Paginate().Size(20).Cursor("token123"),
+			wantLimit: int32Ptr(20),
+			wantToken: "token123",
+		},
+		{
+			name:      "with size only",
+			page:      sift.Paginate().Size(50).Cursor(""),
+			wantLimit: int32Ptr(50),
+			wantToken: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			adapter := NewAdapter()
+			err := sift.Thru(context.Background(), adapter, sift.WithPagination(tt.page))
+			if err != nil {
+				t.Fatalf("Thru() error = %v", err)
+			}
+
+			limit := adapter.Limit()
+			if (limit == nil) != (tt.wantLimit == nil) {
+				t.Errorf("Limit() = %v, want %v", limit, tt.wantLimit)
+			} else if limit != nil && tt.wantLimit != nil && *limit != *tt.wantLimit {
+				t.Errorf("Limit() = %d, want %d", *limit, *tt.wantLimit)
+			}
+
+			if adapter.Token() != tt.wantToken {
+				t.Errorf("Token() = %s, want %s", adapter.Token(), tt.wantToken)
+			}
+		})
+	}
+}
+
+func TestAdapter_FilterSortPage(t *testing.T) {
+	filter := sift.Eq("status", "active")
+	sort := sift.Sort("created_at", sift.SortDesc)
+	page := sift.Paginate().Size(20).Cursor("token123")
+
+	adapter := NewAdapter()
+	err := sift.Thru(context.Background(), adapter,
+		sift.WithFilter(filter),
+		sift.WithSort(sort),
+		sift.WithPagination(page))
+
+	if err != nil {
+		t.Fatalf("Thru() error = %v", err)
+	}
+
+	// Check filter
+	expr, err := adapter.Expression()
+	if err != nil {
+		t.Fatalf("Expression() error = %v", err)
+	}
+	if expr.Condition() == nil {
+		t.Error("Expected condition to be set")
+	}
+
+	// Check sort
+	forward := adapter.ScanIndexForward()
+	if forward == nil || *forward != false {
+		t.Errorf("ScanIndexForward() = %v, want false", forward)
+	}
+
+	// Check pagination
+	limit := adapter.Limit()
+	if limit == nil || *limit != 20 {
+		t.Errorf("Limit() = %v, want 20", limit)
+	}
+
+	if adapter.Token() != "token123" {
+		t.Errorf("Token() = %s, want token123", adapter.Token())
+	}
+}
+
+func int32Ptr(i int32) *int32 {
+	return &i
 }

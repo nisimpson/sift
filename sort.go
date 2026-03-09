@@ -68,16 +68,3 @@ type SortFieldEvaluator interface {
 type SortListEvaluator interface {
 	EvaluateSortList(ctx context.Context, list *SortList) error
 }
-
-// SortThru traverses a sort expression using the visitor pattern.
-// It calls the appropriate evaluator methods on the adapter.
-//
-// Example:
-//
-//	sort := sift.Sort("created_at", sift.SortDesc).ThenBy("name", sift.SortAsc)
-//	adapter := sql.NewAdapter()
-//	err := sift.SortThru(ctx, adapter, sort)
-func SortThru(ctx context.Context, adapter Adapter, expr SortExpression) error {
-	evaluator := adapter.Evaluator(ctx)
-	return expr.accept(ctx, evaluator)
-}

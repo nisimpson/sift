@@ -1,6 +1,6 @@
 # Sift
 
-A universal query filter and sort library for Go that lets you write filter and sort logic once and use it across multiple backends.
+A universal query library for Go that lets you write filter, sort, and pagination logic once and use it across multiple backends.
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/nisimpson/sift.svg)](https://pkg.go.dev/github.com/nisimpson/sift)
 [![Go Report Card](https://goreportcard.com/badge/github.com/nisimpson/sift)](https://goreportcard.com/report/github.com/nisimpson/sift)
@@ -8,35 +8,29 @@ A universal query filter and sort library for Go that lets you write filter and 
 
 ## The Problem
 
-When building applications with multiple data backends (DynamoDB, SQL, MongoDB, Elasticsearch), you end up writing the same filtering and sorting logic multiple times in different query languages. This leads to:
+When building applications with multiple data backends (DynamoDB, SQL, MongoDB, Elasticsearch), you end up writing the same filtering, sorting, and pagination logic multiple times in different query languages. This leads to:
 
 - Code duplication across data access layers
-- Inconsistent filter and sort capabilities between backends
+- Inconsistent query capabilities between backends
 - Difficulty switching or adding new backends
 - Complex translation logic scattered throughout the codebase
 
 ## The Solution
 
-Sift provides a universal filter and sort expression language using an Abstract Syntax Tree (AST). Define your filters and sorts once, then implement backend-specific evaluators to translate them into native queries.
+Sift provides a universal query expression language using an Abstract Syntax Tree (AST). Define your filters, sorts, and pagination once, then implement backend-specific evaluators to translate them into native queries.
 
 ```go
-// Define a filter once
-filter := &sift.AndOperation{
-    Left: &sift.Condition{
-        Name:      "status",
-        Operation: sift.OperationEQ,
-        Value:     "active",
-    },
-    Right: &sift.Condition{
-        Name:      "age",
-        Operation: sift.OperationGT,
-        Value:     "18",
-    },
-}
+// Define query components once
+filter := sift.Eq("status", "active").And(sift.Gt("age", 18))
+sort := sift.Sort("created_at", sift.SortDesc)
+page := sift.Paginate().Size(20).Number(2)
 
 // Use with any backend
 adapter := mybackend.NewAdapter()
-err := sift.Thru(ctx, adapter, filter)
+err := sift.Thru(ctx, adapter,
+    sift.WithFilter(filter),
+    sift.WithSort(sort),
+    sift.WithPagination(page))
 ```
 
 ## Installation
@@ -52,19 +46,35 @@ go get github.com/nisimpson/sift
 
 ## Quick Start
 
-### 1. Create a Filter
+### Unified API
+
+Sift uses a unified API with options for all query operations:
 
 ```go
 import "github.com/nisimpson/sift"
 
-// Simple condition: status = "active"
-filter := &sift.Condition{
-    Name:      "status",
-    Operation: sift.OperationEQ,
-    Value:     "active",
-}
+// Create filter, sort, and pagination
+filter := sift.Eq("status", "active").And(sift.Gt("age", 18))
+sort := sift.Sort("created_at", sift.SortDesc)
+page := sift.Paginate().Size(20).Number(1)
 
-// Or use the fluent builder API
+// Apply all at once
+adapter := sql.NewAdapter()
+err := sift.Thru(ctx, adapter,
+    sift.WithFilter(filter),
+    sift.WithSort(sort),
+    sift.WithPagination(page))
+
+// Or apply individually
+err := sift.Thru(ctx, adapter, sift.WithFilter(filter))
+err = sift.Thru(ctx, adapter, sift.WithSort(sort))
+err = sift.Thru(ctx, adapter, sift.WithPagination(page))
+```
+
+### 1. Filtering
+
+```go
+// Simple condition: status = "active"
 filter := sift.Eq("status", "active")
 
 // Complex filter: (status = "active" AND age > 18) OR role = "admin"
@@ -75,7 +85,7 @@ filter := sift.Eq("status", "active").
 
 ### Expression Builder
 
-The fluent builder API provides a more readable way to construct filters:
+The fluent builder API provides a readable way to construct filters:
 
 ```go
 // All comparison operations
@@ -100,17 +110,10 @@ sift.NotExists("deleted_at")
 // Combine with logical operations
 filter := sift.Eq("status", "active").
     And(sift.Gt("age", 18)).
-    Or(sift.Eq("role", "admin")).
-    Not()
-
-// The builder returns an ExpressionBuilder which implements Expression
-// and can be used directly with Thru()
-err := sift.Thru(ctx, adapter, filter)
+    Or(sift.Eq("role", "admin"))
 ```
 
-### Sorting
-
-Create sort expressions using the fluent builder API:
+### 2. Sorting
 
 ```go
 // Sort by a single field
@@ -122,12 +125,21 @@ sort := sift.Sort("created_at", sift.SortDesc).
 
 // Control NULL ordering
 sort := sift.Sort("email", sift.SortAsc).NullsLast()
-
-// Use with adapter
-err := sift.SortThru(ctx, adapter, sort)
 ```
 
-### 2. Implement an Adapter
+### 3. Pagination
+
+Sift supports both offset-based and cursor-based pagination:
+
+```go
+// Offset-based (SQL databases)
+page := sift.Paginate().Size(20).Number(2)  // Page 2, 20 items per page
+
+// Cursor-based (DynamoDB, GraphQL APIs)
+page := sift.Paginate().Size(20).Cursor("token123")
+```
+
+### 4. Implement an Adapter
 
 ```go
 type MyAdapter struct {
@@ -144,10 +156,12 @@ func NewAdapter() *MyAdapter {
 // Implement the Adapter interface
 func (a *MyAdapter) Evaluator(ctx context.Context) *sift.Evaluator {
     return &sift.Evaluator{
-        ConditionEvaluator: a,
-        AndEvaluator:       a,
-        OrEvaluator:        a,
-        NotEvaluator:       a,
+        ConditionEvaluator:        a,
+        AndEvaluator:              a,
+        OrEvaluator:               a,
+        NotEvaluator:              a,
+        SortListEvaluator:         a,  // Optional: for sorting support
+        OffsetPaginationEvaluator: a,  // Optional: for pagination support
     }
 }
 
@@ -168,12 +182,12 @@ func (a *MyAdapter) EvaluateCondition(ctx context.Context, node *sift.Condition)
 
 func (a *MyAdapter) EvaluateAnd(ctx context.Context, node *sift.AndOperation) error {
     leftAdapter := NewAdapter()
-    if err := sift.Thru(ctx, leftAdapter, node.Left); err != nil {
+    if err := sift.Thru(ctx, leftAdapter, sift.WithFilter(node.Left)); err != nil {
         return err
     }
     
     rightAdapter := NewAdapter()
-    if err := sift.Thru(ctx, rightAdapter, node.Right); err != nil {
+    if err := sift.Thru(ctx, rightAdapter, sift.WithFilter(node.Right)); err != nil {
         return err
     }
     
@@ -182,20 +196,30 @@ func (a *MyAdapter) EvaluateAnd(ctx context.Context, node *sift.AndOperation) er
     return nil
 }
 
-// Implement EvaluateOr and EvaluateNot similarly...
+// Implement EvaluateOr, EvaluateNot, EvaluateSortList, EvaluateOffsetPagination...
 ```
 
-### 3. Use the Adapter
+### 5. Use the Adapter
 
 ```go
+filter := sift.Eq("status", "active")
+sort := sift.Sort("created_at", sift.SortDesc)
+page := sift.Paginate().Size(20).Number(1)
+
 adapter := NewAdapter()
-err := sift.Thru(ctx, adapter, filter)
+err := sift.Thru(ctx, adapter,
+    sift.WithFilter(filter),
+    sift.WithSort(sort),
+    sift.WithPagination(page))
+
 if err != nil {
     log.Fatal(err)
 }
 
 // Use the generated query
-rows, err := db.Query(adapter.query, adapter.args...)
+query := fmt.Sprintf("SELECT * FROM users WHERE %s ORDER BY %s LIMIT %d OFFSET %d",
+    adapter.Query(), adapter.OrderBy(), adapter.Limit(), adapter.Offset())
+rows, err := db.Query(query, adapter.Args()...)
 ```
 
 ## Supported Operations
@@ -270,7 +294,7 @@ GET /users?filter=and(eq(status,active),gt(age,18))
 
 ## Sorting
 
-Sift provides sorting support through the `SortThru()` function, following the same visitor pattern as filtering.
+Sift provides sorting support through the unified `Thru()` API with `WithSort()` option.
 
 ### Basic Sorting
 
@@ -279,7 +303,7 @@ Sift provides sorting support through the `SortThru()` function, following the s
 sort := sift.Sort("created_at", sift.SortDesc)
 
 adapter := sql.NewAdapter()
-sift.SortThru(ctx, adapter, sort)
+sift.Thru(ctx, adapter, sift.WithSort(sort))
 
 query := fmt.Sprintf("SELECT * FROM users ORDER BY %s", adapter.OrderBy())
 // SELECT * FROM users ORDER BY created_at DESC
@@ -295,7 +319,7 @@ sort := sift.Sort("created_at", sift.SortDesc).
     ThenBy("name", sift.SortAsc)
 
 adapter := sql.NewAdapter()
-sift.SortThru(ctx, adapter, sort)
+sift.Thru(ctx, adapter, sift.WithSort(sort))
 // ORDER BY created_at DESC, name ASC
 ```
 
@@ -324,8 +348,9 @@ filter := sift.Eq("status", "active").And(sift.Gt("age", 18))
 sort := sift.Sort("created_at", sift.SortDesc).ThenBy("name", sift.SortAsc)
 
 adapter := sql.NewAdapter()
-sift.Thru(ctx, adapter, filter)
-sift.SortThru(ctx, adapter, sort)
+sift.Thru(ctx, adapter,
+    sift.WithFilter(filter),
+    sift.WithSort(sort))
 
 query := fmt.Sprintf("SELECT * FROM users WHERE %s ORDER BY %s",
     adapter.Query(), adapter.OrderBy())
@@ -339,9 +364,121 @@ Two sort directions are available:
 - `sift.SortAsc` - Ascending order (A-Z, 0-9, oldest-newest)
 - `sift.SortDesc` - Descending order (Z-A, 9-0, newest-oldest)
 
+## Pagination
+
+Sift supports both offset-based and cursor-based pagination strategies.
+
+### Offset-Based Pagination
+
+Used with SQL databases (LIMIT/OFFSET):
+
+```go
+// First page (20 items)
+page := sift.Paginate().Size(20).Number(1)
+
+// Second page
+page := sift.Paginate().Size(20).Number(2)
+
+adapter := sql.NewAdapter()
+sift.Thru(ctx, adapter, sift.WithPagination(page))
+
+query := fmt.Sprintf("SELECT * FROM users LIMIT %d OFFSET %d",
+    adapter.Limit(), adapter.Offset())
+// SELECT * FROM users LIMIT 20 OFFSET 20
+```
+
+### Cursor-Based Pagination
+
+Used with DynamoDB, GraphQL, and other cursor-based APIs:
+
+```go
+// First page
+page := sift.Paginate().Size(20).Cursor("")
+
+// Next page with cursor from previous response
+page := sift.Paginate().Size(20).Cursor("token123")
+
+adapter := dynamodb.NewAdapter()
+sift.Thru(ctx, adapter, sift.WithPagination(page))
+
+input := &dynamodb.QueryInput{
+    TableName: aws.String("Users"),
+    Limit:     adapter.Limit(),  // *int32
+}
+if token := adapter.Token(); token != "" {
+    input.ExclusiveStartKey = decodeToken(token)
+}
+```
+
+### Default Limits (SQL)
+
+For SQL databases, you can configure a default limit to prevent unbounded queries:
+
+```go
+config := &sql.Config{
+    Dialect:      sql.DialectPostgreSQL,
+    DefaultLimit: 100,  // Applied when no pagination specified
+}
+adapter := sql.NewAdapterWithConfig(config)
+
+// No pagination - uses default limit of 100
+sift.Thru(ctx, adapter, sift.WithFilter(filter))
+fmt.Println(adapter.Limit())  // 100
+
+// With pagination - overrides default
+page := sift.Paginate().Size(20).Number(1)
+sift.Thru(ctx, adapter, sift.WithPagination(page))
+fmt.Println(adapter.Limit())  // 20
+```
+
+### Complete Example
+
+Combining filter, sort, and pagination:
+
+```go
+// SQL (offset-based)
+filter := sift.Eq("status", "active").And(sift.Gt("age", 18))
+sort := sift.Sort("created_at", sift.SortDesc)
+page := sift.Paginate().Size(20).Number(2)
+
+adapter := sql.NewAdapter()
+sift.Thru(ctx, adapter,
+    sift.WithFilter(filter),
+    sift.WithSort(sort),
+    sift.WithPagination(page))
+
+query := fmt.Sprintf("SELECT * FROM users WHERE %s ORDER BY %s LIMIT %d OFFSET %d",
+    adapter.Query(), adapter.OrderBy(), adapter.Limit(), adapter.Offset())
+// SELECT * FROM users WHERE (status = $1) AND (age > $2) ORDER BY created_at DESC LIMIT 20 OFFSET 20
+
+// DynamoDB (cursor-based)
+filter := sift.Eq("status", "active")
+sort := sift.Sort("created_at", sift.SortDesc)
+page := sift.Paginate().Size(20).Cursor("token123")
+
+adapter := dynamodb.NewAdapter()
+sift.Thru(ctx, adapter,
+    sift.WithFilter(filter),
+    sift.WithSort(sort),
+    sift.WithPagination(page))
+
+expr, _ := adapter.Expression()
+input := &dynamodb.QueryInput{
+    TableName:                 aws.String("Users"),
+    FilterExpression:          expr.Condition(),
+    ExpressionAttributeNames:  expr.Names(),
+    ExpressionAttributeValues: expr.Values(),
+    ScanIndexForward:          adapter.ScanIndexForward(),
+    Limit:                     adapter.Limit(),
+}
+if token := adapter.Token(); token != "" {
+    input.ExclusiveStartKey = decodeToken(token)
+}
+```
+
 ### Adapter Support
 
-Adapters choose whether to support sorting by implementing the sort evaluator interfaces:
+Adapters choose which pagination strategy to support:
 
 ```go
 func (a *Adapter) Evaluator(ctx context.Context) *sift.Evaluator {
@@ -349,13 +486,12 @@ func (a *Adapter) Evaluator(ctx context.Context) *sift.Evaluator {
         // Filtering
         ConditionEvaluator: a,
         AndEvaluator:       a,
-        // Sorting (optional)
+        // Sorting
         SortListEvaluator:  a,
+        // Pagination (choose one or both)
+        OffsetPaginationEvaluator: a,  // For SQL
+        CursorPaginationEvaluator: a,  // For DynamoDB, GraphQL
     }
-}
-
-func (a *Adapter) EvaluateSortList(ctx context.Context, list *sift.SortList) error {
-    // Translate sort fields to backend-specific syntax
 }
 ```
 
@@ -443,7 +579,7 @@ str, _ := sift.Format(filter, nil)
 
 ```go
 type UserRepository interface {
-    Find(ctx context.Context, filter sift.Expression) ([]*User, error)
+    Find(ctx context.Context, opts ...sift.Option) ([]*User, error)
 }
 
 // DynamoDB implementation
@@ -451,10 +587,20 @@ type DynamoUserRepo struct {
     client *dynamodb.Client
 }
 
-func (r *DynamoUserRepo) Find(ctx context.Context, filter sift.Expression) ([]*User, error) {
+func (r *DynamoUserRepo) Find(ctx context.Context, opts ...sift.Option) ([]*User, error) {
     adapter := dynamodb.NewAdapter()
-    sift.Thru(ctx, adapter, filter)
-    // Use adapter.Expression(), adapter.Names(), adapter.Values() with DynamoDB
+    sift.Thru(ctx, adapter, opts...)
+    
+    expr, _ := adapter.Expression()
+    input := &dynamodb.QueryInput{
+        TableName:                 aws.String("Users"),
+        FilterExpression:          expr.Condition(),
+        ExpressionAttributeNames:  expr.Names(),
+        ExpressionAttributeValues: expr.Values(),
+        ScanIndexForward:          adapter.ScanIndexForward(),
+        Limit:                     adapter.Limit(),
+    }
+    // ... execute query and scan results
 }
 
 // PostgreSQL implementation
@@ -462,45 +608,61 @@ type PostgresUserRepo struct {
     db *sql.DB
 }
 
-func (r *PostgresUserRepo) Find(ctx context.Context, filter sift.Expression) ([]*User, error) {
+func (r *PostgresUserRepo) Find(ctx context.Context, opts ...sift.Option) ([]*User, error) {
     adapter := sqlAdapter.NewAdapter() // Defaults to PostgreSQL
-    sift.Thru(ctx, adapter, filter)
+    sift.Thru(ctx, adapter, opts...)
     
-    query := fmt.Sprintf("SELECT * FROM users WHERE %s", adapter.Query())
+    query := fmt.Sprintf("SELECT * FROM users WHERE %s ORDER BY %s LIMIT %d OFFSET %d",
+        adapter.Query(), adapter.OrderBy(), adapter.Limit(), adapter.Offset())
     rows, err := r.db.Query(query, adapter.Args()...)
     // ... scan rows into users
 }
 
-// MySQL implementation
-type MySQLUserRepo struct {
-    db *sql.DB
-}
+// Usage - same interface for both backends
+filter := sift.Eq("status", "active")
+sort := sift.Sort("created_at", sift.SortDesc)
+page := sift.Paginate().Size(20).Number(1)
 
-func (r *MySQLUserRepo) Find(ctx context.Context, filter sift.Expression) ([]*User, error) {
-    config := &sqlAdapter.Config{Dialect: sqlAdapter.DialectMySQL}
-    adapter := sqlAdapter.NewAdapterWithConfig(config)
-    sift.Thru(ctx, adapter, filter)
-    
-    query := fmt.Sprintf("SELECT * FROM users WHERE %s", adapter.Query())
-    rows, err := r.db.Query(query, adapter.Args()...)
-    // ... scan rows into users
-}
+users, err := repo.Find(ctx,
+    sift.WithFilter(filter),
+    sift.WithSort(sort),
+    sift.WithPagination(page))
 ```
 
 ### API Query Parameters
 
 ```go
 func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
+    // Parse query parameters
     filterStr := r.URL.Query().Get("filter")
+    sortStr := r.URL.Query().Get("sort")
+    pageNum, _ := strconv.Atoi(r.URL.Query().Get("page"))
+    pageSize, _ := strconv.Atoi(r.URL.Query().Get("size"))
     
-    // Parse with appropriate registry (or nil if no custom expressions)
-    filter, err := sift.Parse(filterStr, nil)
-    if err != nil {
-        http.Error(w, "Invalid filter", http.StatusBadRequest)
-        return
+    // Build options
+    var opts []sift.Option
+    
+    if filterStr != "" {
+        filter, err := sift.Parse(filterStr, nil)
+        if err != nil {
+            http.Error(w, "Invalid filter", http.StatusBadRequest)
+            return
+        }
+        opts = append(opts, sift.WithFilter(filter))
     }
     
-    users, err := h.repo.Find(r.Context(), filter)
+    if sortStr != "" {
+        // Parse sort string (e.g., "created_at:desc,name:asc")
+        sort := parseSortString(sortStr)
+        opts = append(opts, sift.WithSort(sort))
+    }
+    
+    if pageSize > 0 {
+        page := sift.Paginate().Size(pageSize).Number(pageNum)
+        opts = append(opts, sift.WithPagination(page))
+    }
+    
+    users, err := h.repo.Find(r.Context(), opts...)
     // ...
 }
 ```
@@ -509,22 +671,26 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 
 ```go
 func TestUserFiltering(t *testing.T) {
-    filter := &sift.Condition{
-        Name:      "status",
-        Operation: sift.OperationEQ,
-        Value:     "active",
-    }
+    filter := sift.Eq("status", "active")
+    sort := sift.Sort("created_at", sift.SortDesc)
+    page := sift.Paginate().Size(20).Number(1)
     
     // Test with different backends
     t.Run("DynamoDB", func(t *testing.T) {
         adapter := dynamodb.NewAdapter()
-        err := sift.Thru(ctx, adapter, filter)
+        err := sift.Thru(ctx, adapter,
+            sift.WithFilter(filter),
+            sift.WithSort(sort),
+            sift.WithPagination(page))
         // assertions...
     })
     
     t.Run("PostgreSQL", func(t *testing.T) {
         adapter := postgres.NewAdapter()
-        err := sift.Thru(ctx, adapter, filter)
+        err := sift.Thru(ctx, adapter,
+            sift.WithFilter(filter),
+            sift.WithSort(sort),
+            sift.WithPagination(page))
         // assertions...
     })
 }

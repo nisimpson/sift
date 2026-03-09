@@ -131,7 +131,7 @@ func TestExpressionBuilderAccept(t *testing.T) {
 	adapter := newMockAdapter()
 
 	// Builder should be usable as an Expression
-	err := Thru(context.Background(), adapter, builder)
+	err := Thru(context.Background(), adapter, WithFilter(builder))
 	if err != nil {
 		t.Errorf("Thru() with builder error = %v", err)
 	}
@@ -263,7 +263,7 @@ func TestExpressionBuilderWithThru(t *testing.T) {
 	builder := NewExpressionBuilder(a).And(b)
 
 	adapter := newMockAdapter()
-	err := Thru(context.Background(), adapter, builder)
+	err := Thru(context.Background(), adapter, WithFilter(builder))
 	if err != nil {
 		t.Errorf("Thru() error = %v", err)
 	}
@@ -524,7 +524,7 @@ func TestBuilderConvenienceFunctionsWithThru(t *testing.T) {
 	builder := Eq("status", "active").And(Gt("age", 18))
 
 	adapter := newMockAdapter()
-	err := Thru(context.Background(), adapter, builder)
+	err := Thru(context.Background(), adapter, WithFilter(builder))
 	if err != nil {
 		t.Errorf("Thru() error = %v", err)
 	}

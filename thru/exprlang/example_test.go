@@ -30,7 +30,7 @@ func Example_basicFilter() {
 
 	// Translate to expr-lang
 	adapter := exprlang.NewAdapter()
-	_ = sift.Thru(context.Background(), adapter, filter)
+	_ = sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	// Compile and run with expr-lang
 	program, _ := expr.Compile(adapter.Expression(), expr.Env(User{}))
@@ -77,7 +77,7 @@ func Example_complexFilter() {
 
 	// Translate to expr-lang
 	adapter := exprlang.NewAdapter()
-	_ = sift.Thru(context.Background(), adapter, filter)
+	_ = sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	fmt.Println("Expression:", adapter.Expression())
 
@@ -119,7 +119,7 @@ func Example_negation() {
 
 	// Translate to expr-lang
 	adapter := exprlang.NewAdapter()
-	_ = sift.Thru(context.Background(), adapter, filter)
+	_ = sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	fmt.Println("Expression:", adapter.Expression())
 
@@ -163,7 +163,7 @@ func Example_inOperation() {
 
 	// Translate to expr-lang
 	adapter := exprlang.NewAdapter()
-	_ = sift.Thru(context.Background(), adapter, filter)
+	_ = sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	fmt.Println("Expression:", adapter.Expression())
 
@@ -209,7 +209,7 @@ func Example_stringOperations() {
 
 	// Translate to expr-lang
 	adapter := exprlang.NewAdapter()
-	_ = sift.Thru(context.Background(), adapter, filter)
+	_ = sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	fmt.Println("Expression:", adapter.Expression())
 
@@ -248,7 +248,7 @@ func Example_betweenOperation() {
 
 	// Translate to expr-lang
 	adapter := exprlang.NewAdapter()
-	_ = sift.Thru(context.Background(), adapter, filter)
+	_ = sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	fmt.Println("Expression:", adapter.Expression())
 
@@ -294,7 +294,7 @@ func Example_customExpression() {
 
 	// Translate to expr-lang
 	adapter := exprlang.NewAdapter()
-	_ = sift.Thru(context.Background(), adapter, filter)
+	_ = sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	fmt.Println("Expression:", adapter.Expression())
 
@@ -364,7 +364,7 @@ func Example_mixedStandardAndCustom() {
 
 	// Translate to expr-lang
 	adapter := exprlang.NewAdapter()
-	_ = sift.Thru(context.Background(), adapter, filter)
+	_ = sift.Thru(context.Background(), adapter, sift.WithFilter(filter))
 
 	fmt.Println("Expression:", adapter.Expression())
 
@@ -402,7 +402,7 @@ func Example_serialization() {
 	fmt.Println("  Sift format:", filter1.String())
 	
 	adapter1 := exprlang.NewAdapter()
-	_ = sift.Thru(context.Background(), adapter1, filter1)
+	_ = sift.Thru(context.Background(), adapter1, sift.WithFilter(filter1))
 	fmt.Println("  Expr-lang:", adapter1.Expression())
 	
 	// Mixed standard and custom
@@ -418,7 +418,7 @@ func Example_serialization() {
 	fmt.Println("  Sift format:", filter2.String())
 	
 	adapter2 := exprlang.NewAdapter()
-	_ = sift.Thru(context.Background(), adapter2, filter2)
+	_ = sift.Thru(context.Background(), adapter2, sift.WithFilter(filter2))
 	fmt.Println("  Expr-lang:", adapter2.Expression())
 
 	// Output:

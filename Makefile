@@ -1,4 +1,4 @@
-.PHONY: help build test test-coverage lint fmt vet clean install-tools check publish-check publish-prepare publish publish-restore tag-release list-tags delete-tag release-info changelog
+.PHONY: help build test test-coverage lint fmt vet clean install-tools check publish-check publish-prepare publish publish-restore publish-proxy tag-release list-tags delete-tag release-info changelog
 
 # Default target
 .DEFAULT_GOAL := help
@@ -321,9 +321,10 @@ publish: ## Publish a new release (VERSION=x.y.z required, MODULE=path optional)
 	@echo "✅ Release v$(VERSION) published successfully!"
 	@echo ""
 	@echo "Next steps:"
-	@echo "  1. Verify on GitHub: https://github.com/nisimpson/sift/releases"
-	@echo "  2. Check pkg.go.dev (may take a few minutes to index)"
-	@echo "  3. Restore development versions: make publish-restore"
+	@echo "  1. Trigger Go proxy indexing: make publish-proxy VERSION=$(VERSION)"
+	@echo "  2. Verify on GitHub: https://github.com/nisimpson/sift/releases"
+	@echo "  3. Check pkg.go.dev (may take a few minutes to index)"
+	@echo "  4. Restore development versions: make publish-restore"
 
 publish-restore: ## Restore v0.0.0 versions for development
 	@echo "Restoring development versions..."
@@ -344,3 +345,57 @@ publish-restore: ## Restore v0.0.0 versions for development
 	@git push origin main
 	@echo ""
 	@echo "Ready for development!"
+
+publish-proxy: ## Trigger Go module proxy to index published modules (VERSION=x.y.z required, MODULE=path optional)
+	@if [ -z "$(VERSION)" ] || [ "$(VERSION)" = "dev" ]; then \
+		echo "Error: VERSION is required. Usage: make publish-proxy VERSION=1.0.0"; \
+		echo ""; \
+		echo "Examples:"; \
+		echo "  make publish-proxy VERSION=1.0.0                    # Index all modules"; \
+		echo "  make publish-proxy VERSION=1.0.0 MODULE=.           # Index main module only"; \
+		echo "  make publish-proxy VERSION=1.0.1 MODULE=thru/sql    # Index SQL adapter only"; \
+		exit 1; \
+	fi
+	@echo "Triggering Go module proxy to index modules..."
+	@echo ""
+	@if [ -n "$(MODULE)" ]; then \
+		if [ "$(MODULE)" = "." ]; then \
+			echo "Indexing main module v$(VERSION)..."; \
+			GOPROXY=proxy.golang.org go list -m github.com/nisimpson/sift@v$(VERSION) || true; \
+		else \
+			echo "Indexing $(MODULE) v$(VERSION)..."; \
+			GOPROXY=proxy.golang.org go list -m github.com/nisimpson/sift/$(MODULE)@v$(VERSION) || true; \
+		fi; \
+	else \
+		echo "Indexing main module v$(VERSION)..."; \
+		GOPROXY=proxy.golang.org go list -m github.com/nisimpson/sift@v$(VERSION) || true; \
+		echo ""; \
+		echo "Indexing thru/dynamodb v$(VERSION)..."; \
+		GOPROXY=proxy.golang.org go list -m github.com/nisimpson/sift/thru/dynamodb@v$(VERSION) || true; \
+		echo ""; \
+		echo "Indexing thru/sql v$(VERSION)..."; \
+		GOPROXY=proxy.golang.org go list -m github.com/nisimpson/sift/thru/sql@v$(VERSION) || true; \
+		echo ""; \
+		echo "Indexing thru/exprlang v$(VERSION)..."; \
+		GOPROXY=proxy.golang.org go list -m github.com/nisimpson/sift/thru/exprlang@v$(VERSION) || true; \
+		echo ""; \
+		echo "Indexing thru/jsonapi v$(VERSION)..."; \
+		GOPROXY=proxy.golang.org go list -m github.com/nisimpson/sift/thru/jsonapi@v$(VERSION) || true; \
+	fi
+	@echo ""
+	@echo "✅ Proxy indexing triggered"
+	@echo ""
+	@echo "Verify on pkg.go.dev (may take a few minutes):"
+	@if [ -n "$(MODULE)" ]; then \
+		if [ "$(MODULE)" = "." ]; then \
+			echo "  https://pkg.go.dev/github.com/nisimpson/sift@v$(VERSION)"; \
+		else \
+			echo "  https://pkg.go.dev/github.com/nisimpson/sift/$(MODULE)@v$(VERSION)"; \
+		fi; \
+	else \
+		echo "  https://pkg.go.dev/github.com/nisimpson/sift@v$(VERSION)"; \
+		echo "  https://pkg.go.dev/github.com/nisimpson/sift/thru/dynamodb@v$(VERSION)"; \
+		echo "  https://pkg.go.dev/github.com/nisimpson/sift/thru/sql@v$(VERSION)"; \
+		echo "  https://pkg.go.dev/github.com/nisimpson/sift/thru/exprlang@v$(VERSION)"; \
+		echo "  https://pkg.go.dev/github.com/nisimpson/sift/thru/jsonapi@v$(VERSION)"; \
+	fi

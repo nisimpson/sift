@@ -47,6 +47,27 @@ Release modules independently when:
 
 ### 1. Pre-Release Checklist
 
+**CRITICAL: Update Submodule Dependencies**
+
+Before releasing, you MUST update the submodule go.mod files to reference the actual version instead of using `replace` directives:
+
+```bash
+# For each submodule (thru/dynamodb, thru/sql, thru/exprlang, thru/jsonapi):
+# 1. Remove the replace directive
+# 2. Update the require version to match the release version
+
+# Example for v1.0.0 release:
+# In thru/sql/go.mod, change:
+#   require github.com/nisimpson/sift v0.0.0
+#   replace github.com/nisimpson/sift => ../..
+# To:
+#   require github.com/nisimpson/sift v1.0.0
+```
+
+**Note:** The `replace` directives are used during development to reference the local main module. They must be removed before publishing or users won't be able to install the modules.
+
+**Standard Pre-Release Checks:**
+
 ```bash
 # Ensure working directory is clean
 git status

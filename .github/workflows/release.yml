@@ -33,6 +33,10 @@ jobs:
     - name: Run tests
       run: make test-short
 
+    - name: Publish to Go module proxy
+      run: |
+        GOPROXY=proxy.golang.org go list -m github.com/nisimpson/sift/${{ steps.release_info.outputs.module_path }}@${{ steps.release_info.outputs.tag }}
+
     - name: Generate changelog
       id: changelog
       run: |

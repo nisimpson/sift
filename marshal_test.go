@@ -1248,7 +1248,7 @@ func TestParseQuery(t *testing.T) {
 				if q.Pagination == nil {
 					t.Error("Pagination should not be nil")
 				}
-				
+
 				// Verify pagination details
 				offsetPage, ok := q.Pagination.(*OffsetPagination)
 				if !ok {

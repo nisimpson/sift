@@ -364,6 +364,7 @@ func escapeValue(s string) string {
 //	registry := sift.NewRegistry()
 //	registry.Register("size", SizeFormatter{})
 //	expr, _ := sift.ParseFilter("and(eq(status,active),size(tags,gt,5))", registry)
+//
 // parseFilter deserializes a string into a filter expression using prefix notation.
 func parseFilter(s string, registry *Registry) (Expression, error) {
 	p := &Parser{
@@ -397,7 +398,7 @@ func ParseQuery(s string, registry *Registry) (*Query, error) {
 	}
 
 	query := &Query{}
-	
+
 	// Split by top-level commas (not inside parentheses)
 	parts, err := splitTopLevel(s)
 	if err != nil {
@@ -411,37 +412,38 @@ func ParseQuery(s string, registry *Registry) (*Query, error) {
 		}
 
 		// Check what type of expression this is
-		if strings.HasPrefix(part, "filter(") {
+		switch {
+		case strings.HasPrefix(part, "filter("):
 			// Extract the filter content
 			content := strings.TrimPrefix(part, "filter(")
 			content = strings.TrimSuffix(content, ")")
-			
+
 			filter, err := parseFilter(content, registry)
 			if err != nil {
 				return nil, fmt.Errorf("invalid filter: %w", err)
 			}
 			query.Filter = filter
-		} else if strings.HasPrefix(part, "sort(") {
+		case strings.HasPrefix(part, "sort("):
 			// Extract the sort content
 			content := strings.TrimPrefix(part, "sort(")
 			content = strings.TrimSuffix(content, ")")
-			
+
 			sort, err := parseSort(content)
 			if err != nil {
 				return nil, fmt.Errorf("invalid sort: %w", err)
 			}
 			query.Sort = sort
-		} else if strings.HasPrefix(part, "page(") {
+		case strings.HasPrefix(part, "page("):
 			// Extract the pagination content
 			content := strings.TrimPrefix(part, "page(")
 			content = strings.TrimSuffix(content, ")")
-			
+
 			page, err := parsePagination(content)
 			if err != nil {
 				return nil, fmt.Errorf("invalid pagination: %w", err)
 			}
 			query.Pagination = page
-		} else {
+		default:
 			return nil, fmt.Errorf("unknown expression type: %s", part)
 		}
 	}
@@ -514,10 +516,7 @@ func parseSort(s string) (SortExpression, error) {
 	}
 
 	// Split by commas (respecting escapes)
-	fields, err := splitSortFields(s)
-	if err != nil {
-		return nil, err
-	}
+	fields := splitSortFields(s)
 
 	var sortFields []*SortField
 	for _, fieldStr := range fields {
@@ -536,7 +535,7 @@ func parseSort(s string) (SortExpression, error) {
 
 // splitSortFields splits a sort string by commas, respecting escape sequences.
 // The escape sequences are preserved in the output for later unescaping.
-func splitSortFields(s string) ([]string, error) {
+func splitSortFields(s string) []string {
 	var fields []string
 	var current strings.Builder
 	escaped := false
@@ -570,17 +569,14 @@ func splitSortFields(s string) ([]string, error) {
 		fields = append(fields, current.String())
 	}
 
-	return fields, nil
+	return fields
 }
 
 // parseSortField parses a single sort field.
 // Format: field:direction or field:direction:nullslast
 func parseSortField(s string) (*SortField, error) {
 	// Split by colons (respecting escapes)
-	parts, err := splitByColon(s)
-	if err != nil {
-		return nil, err
-	}
+	parts := splitByColon(s)
 
 	if len(parts) < 2 {
 		return nil, fmt.Errorf("invalid sort field format: %s (expected field:direction)", s)
@@ -606,7 +602,7 @@ func parseSortField(s string) (*SortField, error) {
 
 // splitByColon splits a string by colons, respecting escape sequences.
 // The escape sequences are preserved in the output for later unescaping.
-func splitByColon(s string) ([]string, error) {
+func splitByColon(s string) []string {
 	var parts []string
 	var current strings.Builder
 	escaped := false
@@ -640,7 +636,7 @@ func splitByColon(s string) ([]string, error) {
 		parts = append(parts, current.String())
 	}
 
-	return parts, nil
+	return parts
 }
 
 // parsePagination deserializes a string into a pagination expression.
@@ -651,18 +647,12 @@ func parsePagination(s string) (PaginationExpression, error) {
 	}
 
 	// Split by commas (respecting escapes)
-	parts, err := splitSortFields(s) // Reuse the same splitting logic
-	if err != nil {
-		return nil, err
-	}
+	parts := splitSortFields(s) // Reuse the same splitting logic
 
 	// Parse into key-value pairs
 	params := make(map[string]string)
 	for _, part := range parts {
-		kv, err := splitByColon(part)
-		if err != nil {
-			return nil, err
-		}
+		kv := splitByColon(part)
 		if len(kv) != 2 {
 			return nil, fmt.Errorf("invalid pagination parameter: %s", part)
 		}

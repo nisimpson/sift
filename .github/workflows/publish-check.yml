@@ -5,6 +5,11 @@ on:
     branches: [ main ]
     types: [ opened, synchronize, reopened ]
 
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
 jobs:
   check:
     name: Pre-publish Validation
@@ -17,7 +22,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.23'
+        go-version: '1.25.7'
         cache: true
 
     - name: Run publish check
@@ -29,7 +34,7 @@ jobs:
       with:
         script: |
           const status = '${{ job.status }}';
-          const prefix = status === 'success' ? '[PASS]' : '[FAIL]';
+          const prefix = status === 'success' ? '✅' : '❌';
           const message = status === 'success' 
             ? 'All publish checks passed! This PR is ready to merge and release.'
             : 'Some publish checks failed. Please review the logs.';

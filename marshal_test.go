@@ -6,8 +6,8 @@ import (
 	"testing"
 )
 
-// TestFormat tests the Format function
-func TestFormat(t *testing.T) {
+// TestFormatFilter tests the FormatFilter function
+func TestFormatFilter(t *testing.T) {
 	tests := []struct {
 		name    string
 		expr    Expression
@@ -57,7 +57,7 @@ func TestFormat(t *testing.T) {
 				Operation: OperationEQ,
 				Value:     `C:\Users`,
 			},
-			want: `eq(path,C:\\Users)`,
+			want: `eq(path,C\:\\Users)`, // Backslash and colon are both escaped
 		},
 		{
 			name: "exists operation",
@@ -145,13 +145,13 @@ func TestFormat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Format(tt.expr, nil)
+			got, err := FormatFilter(tt.expr, nil)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Format() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("FormatFilter() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if got != tt.want {
-				t.Errorf("Format() = %v, want %v", got, tt.want)
+				t.Errorf("FormatFilter() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -264,15 +264,15 @@ func TestParse(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Parse(tt.input, nil)
+			query, err := ParseQuery("filter("+tt.input+")", nil)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Parse() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("ParseQuery() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !tt.wantErr {
-				gotStr := got.(interface{ String() string }).String()
+				gotStr := query.Filter.(interface{ String() string }).String()
 				if gotStr != tt.want {
-					t.Errorf("Parse() = %v, want %v", gotStr, tt.want)
+					t.Errorf("ParseQuery() = %v, want %v", gotStr, tt.want)
 				}
 			}
 		})
@@ -336,22 +336,22 @@ func TestFormatParseRoundTrip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Format the expression
-			formatted, err := Format(tt.expr, nil)
+			// Format the expression using FormatFilter
+			formatted, err := FormatFilter(tt.expr, nil)
 			if err != nil {
-				t.Fatalf("Format() error = %v", err)
+				t.Fatalf("FormatFilter() error = %v", err)
 			}
 
-			// Parse it back
-			parsed, err := Parse(formatted, nil)
+			// Parse it back using ParseQuery
+			query, err := ParseQuery("filter("+formatted+")", nil)
 			if err != nil {
-				t.Fatalf("Parse() error = %v", err)
+				t.Fatalf("ParseQuery() error = %v", err)
 			}
 
 			// Format again
-			reformatted, err := Format(parsed, nil)
+			reformatted, err := FormatFilter(query.Filter, nil)
 			if err != nil {
-				t.Fatalf("Format() second time error = %v", err)
+				t.Fatalf("FormatFilter() second time error = %v", err)
 			}
 
 			// Should be identical
@@ -489,12 +489,12 @@ func TestCustomExpressionRegistry(t *testing.T) {
 		}
 		expr := NewCustomExpression(custom)
 
-		formatted, err := Format(expr, registry)
+		formatted, err := Format(registry, WithFilter(expr))
 		if err != nil {
 			t.Fatalf("Format() error = %v", err)
 		}
 
-		expected := "geo_within(location)"
+		expected := "filter(geo_within(location))"
 		if formatted != expected {
 			t.Errorf("Format() = %v, want %v", formatted, expected)
 		}
@@ -503,15 +503,15 @@ func TestCustomExpressionRegistry(t *testing.T) {
 	t.Run("parse custom expression", func(t *testing.T) {
 		input := "geo_within(location)"
 
-		parsed, err := Parse(input, registry)
+		query, err := ParseQuery("filter("+input+")", registry)
 		if err != nil {
-			t.Fatalf("Parse() error = %v", err)
+			t.Fatalf("ParseQuery() error = %v", err)
 		}
 
 		// Should be a customNodeWrapper
-		wrapper, ok := parsed.(interface{ String() string })
+		wrapper, ok := query.Filter.(interface{ String() string })
 		if !ok {
-			t.Fatalf("Expected expression with String() method, got %T", parsed)
+			t.Fatalf("Expected expression with String() method, got %T", query.Filter)
 		}
 
 		str := wrapper.String()
@@ -525,17 +525,18 @@ func TestCustomExpressionRegistry(t *testing.T) {
 		custom := &geoWithin{field: "location"}
 		expr := NewCustomExpression(custom)
 
-		formatted, err := Format(expr, registry)
+		formatted, err := Format(registry, WithFilter(expr))
 		if err != nil {
 			t.Fatalf("Format() error = %v", err)
 		}
 
-		parsed, err := Parse(formatted, registry)
+		// Parse the complete query
+		query, err := ParseQuery(formatted, registry)
 		if err != nil {
-			t.Fatalf("Parse() error = %v", err)
+			t.Fatalf("ParseQuery() error = %v", err)
 		}
 
-		reformatted, err := Format(parsed, registry)
+		reformatted, err := Format(registry, WithFilter(query.Filter))
 		if err != nil {
 			t.Fatalf("Format() second time error = %v", err)
 		}
@@ -573,7 +574,7 @@ func TestCustomExpressionErrors(t *testing.T) {
 		custom := &unregisteredCustom{}
 		expr := NewCustomExpression(custom)
 
-		_, err := Format(expr, nil)
+		_, err := Format(nil, WithFilter(expr))
 		if err == nil {
 			t.Error("Expected error for unregistered custom expression")
 		}
@@ -582,7 +583,7 @@ func TestCustomExpressionErrors(t *testing.T) {
 	t.Run("parse unregistered custom expression", func(t *testing.T) {
 		input := "unknown_custom(field)"
 
-		_, err := Parse(input, nil)
+		_, err := ParseQuery("filter("+input+")", nil)
 		if err == nil {
 			t.Error("Expected error for unknown custom expression")
 		}
@@ -594,7 +595,7 @@ func TestCustomExpressionErrors(t *testing.T) {
 		registry.Register("error_custom", errorFormatter{})
 
 		input := "error_custom(field)"
-		_, err := Parse(input, registry)
+		_, err := ParseQuery("filter("+input+")", registry)
 		if err == nil {
 			t.Error("Expected error from custom formatter ParseCustomExpression")
 		}
@@ -607,7 +608,7 @@ func TestCustomExpressionErrors(t *testing.T) {
 		custom := &errorCustom{}
 		expr := NewCustomExpression(custom)
 
-		_, err := Format(expr, registry)
+		_, err := Format(registry, WithFilter(expr))
 		if err == nil {
 			t.Error("Expected error from custom formatter FormatCustomExpression")
 		}
@@ -655,13 +656,13 @@ func TestFormatAllOperations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Format(tt.expr, nil)
+			got, err := FormatFilter(tt.expr, nil)
 			if err != nil {
-				t.Errorf("Format() error = %v", err)
+				t.Errorf("FormatFilter() error = %v", err)
 				return
 			}
 			if got != tt.want {
-				t.Errorf("Format() = %v, want %v", got, tt.want)
+				t.Errorf("FormatFilter() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -675,7 +676,7 @@ func TestFormatUnsupportedOperation(t *testing.T) {
 		Value:     "value",
 	}
 
-	_, err := Format(expr, nil)
+	_, err := FormatFilter(expr, nil)
 	if err == nil {
 		t.Error("Expected error for unsupported operation")
 	}
@@ -759,9 +760,9 @@ func TestParseErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := Parse(tt.input, nil)
+			_, err := ParseQuery("filter("+tt.input+")", nil)
 			if err == nil {
-				t.Errorf("Parse(%q) expected error, got nil", tt.input)
+				t.Errorf("ParseQuery(%q) expected error, got nil", tt.input)
 			}
 		})
 	}
@@ -776,46 +777,50 @@ func TestParseAllOperations(t *testing.T) {
 	}{
 		{
 			name:  "OperationNEQ",
-			input: "ne(status,inactive)",
+			input: "filter(ne(status,inactive))",
 			want:  "ne(status,inactive)",
 		},
 		{
 			name:  "OperationLT",
-			input: "lt(age,30)",
+			input: "filter(lt(age,30))",
 			want:  "lt(age,30)",
 		},
 		{
 			name:  "OperationLTE",
-			input: "le(age,30)",
+			input: "filter(le(age,30))",
 			want:  "le(age,30)",
 		},
 		{
 			name:  "OperationGTE",
-			input: "ge(age,18)",
+			input: "filter(ge(age,18))",
 			want:  "ge(age,18)",
 		},
 		{
 			name:  "OperationIn",
-			input: "in(status,active)",
+			input: "filter(in(status,active))",
 			want:  "in(status,active)",
 		},
 		{
 			name:  "OperationBetween",
-			input: "between(age,18)",
+			input: "filter(between(age,18))",
 			want:  "between(age,18)",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Parse(tt.input, nil)
+			query, err := ParseQuery(tt.input, nil)
 			if err != nil {
-				t.Errorf("Parse() error = %v", err)
+				t.Errorf("ParseQuery() error = %v", err)
 				return
 			}
-			gotStr := got.(interface{ String() string }).String()
+			if query.Filter == nil {
+				t.Error("ParseQuery() returned nil filter")
+				return
+			}
+			gotStr := query.Filter.(interface{ String() string }).String()
 			if gotStr != tt.want {
-				t.Errorf("Parse() = %v, want %v", gotStr, tt.want)
+				t.Errorf("ParseQuery() = %v, want %v", gotStr, tt.want)
 			}
 		})
 	}
@@ -837,7 +842,7 @@ func TestFormatAndErrors(t *testing.T) {
 			},
 		}
 
-		_, err := Format(expr, nil)
+		_, err := FormatFilter(expr, nil)
 		if err == nil {
 			t.Error("Expected error from left side")
 		}
@@ -857,7 +862,7 @@ func TestFormatAndErrors(t *testing.T) {
 			},
 		}
 
-		_, err := Format(expr, nil)
+		_, err := FormatFilter(expr, nil)
 		if err == nil {
 			t.Error("Expected error from right side")
 		}
@@ -880,7 +885,7 @@ func TestFormatOrErrors(t *testing.T) {
 			},
 		}
 
-		_, err := Format(expr, nil)
+		_, err := FormatFilter(expr, nil)
 		if err == nil {
 			t.Error("Expected error from left side")
 		}
@@ -900,7 +905,7 @@ func TestFormatOrErrors(t *testing.T) {
 			},
 		}
 
-		_, err := Format(expr, nil)
+		_, err := FormatFilter(expr, nil)
 		if err == nil {
 			t.Error("Expected error from right side")
 		}
@@ -917,8 +922,455 @@ func TestFormatNotErrors(t *testing.T) {
 		},
 	}
 
-	_, err := Format(expr, nil)
+	_, err := FormatFilter(expr, nil)
 	if err == nil {
 		t.Error("Expected error from child")
+	}
+}
+
+// TestFormat tests the new unified Format function
+func TestFormat(t *testing.T) {
+	filter := &Condition{
+		Name:      "status",
+		Operation: OperationEQ,
+		Value:     "active",
+	}
+	sort := Sort("created_at", SortDesc).ThenBy("name", SortAsc)
+	page := Paginate().Size(20).Number(2)
+
+	t.Run("filter only", func(t *testing.T) {
+		got, err := Format(nil, WithFilter(filter))
+		if err != nil {
+			t.Fatalf("Format() error = %v", err)
+		}
+		want := "filter(eq(status,active))"
+		if got != want {
+			t.Errorf("Format() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("sort only", func(t *testing.T) {
+		got, err := Format(nil, WithSort(sort))
+		if err != nil {
+			t.Fatalf("Format() error = %v", err)
+		}
+		want := "sort(created_at:desc,name:asc)"
+		if got != want {
+			t.Errorf("Format() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("pagination only", func(t *testing.T) {
+		got, err := Format(nil, WithPagination(page))
+		if err != nil {
+			t.Fatalf("Format() error = %v", err)
+		}
+		want := "page(size:20,number:2)"
+		if got != want {
+			t.Errorf("Format() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("all combined", func(t *testing.T) {
+		got, err := Format(nil,
+			WithFilter(filter),
+			WithSort(sort),
+			WithPagination(page),
+		)
+		if err != nil {
+			t.Fatalf("Format() error = %v", err)
+		}
+		want := "filter(eq(status,active)),sort(created_at:desc,name:asc),page(size:20,number:2)"
+		if got != want {
+			t.Errorf("Format() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("filter and sort", func(t *testing.T) {
+		got, err := Format(nil,
+			WithFilter(filter),
+			WithSort(sort),
+		)
+		if err != nil {
+			t.Fatalf("Format() error = %v", err)
+		}
+		want := "filter(eq(status,active)),sort(created_at:desc,name:asc)"
+		if got != want {
+			t.Errorf("Format() = %v, want %v", got, want)
+		}
+	})
+}
+
+// TestFormatSort tests sort expression formatting
+func TestFormatSort(t *testing.T) {
+	tests := []struct {
+		name string
+		expr SortExpression
+		want string
+	}{
+		{
+			name: "single field ascending",
+			expr: &SortField{Name: "name", Direction: SortAsc},
+			want: "name:asc",
+		},
+		{
+			name: "single field descending",
+			expr: &SortField{Name: "created_at", Direction: SortDesc},
+			want: "created_at:desc",
+		},
+		{
+			name: "single field with nulls last",
+			expr: &SortField{Name: "email", Direction: SortAsc, NullsLast: true},
+			want: "email:asc:nullslast",
+		},
+		{
+			name: "multiple fields",
+			expr: &SortList{
+				Fields: []*SortField{
+					{Name: "created_at", Direction: SortDesc},
+					{Name: "name", Direction: SortAsc},
+				},
+			},
+			want: "created_at:desc,name:asc",
+		},
+		{
+			name: "builder with multiple fields",
+			expr: Sort("created_at", SortDesc).ThenBy("name", SortAsc),
+			want: "created_at:desc,name:asc",
+		},
+		{
+			name: "field with special characters",
+			expr: &SortField{Name: "user:name", Direction: SortAsc},
+			want: "user\\:name:asc",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := formatSort(tt.expr)
+			if err != nil {
+				t.Fatalf("formatSort() error = %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("formatSort() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestFormatPagination tests pagination expression formatting
+func TestFormatPagination(t *testing.T) {
+	tests := []struct {
+		name string
+		expr PaginationExpression
+		want string
+	}{
+		{
+			name: "offset pagination",
+			expr: &OffsetPagination{Size: 20, Number: 2},
+			want: "size:20,number:2",
+		},
+		{
+			name: "cursor pagination",
+			expr: &CursorPagination{Size: 20, Cursor: "token123"},
+			want: "size:20,cursor:token123",
+		},
+		{
+			name: "cursor with special characters",
+			expr: &CursorPagination{Size: 20, Cursor: "token:123,abc"},
+			want: "size:20,cursor:token\\:123\\,abc",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := formatPagination(tt.expr)
+			if err != nil {
+				t.Fatalf("formatPagination() error = %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("formatPagination() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestSortPaginationRoundTrip tests that format and parse are inverses
+func TestSortPaginationRoundTrip(t *testing.T) {
+	t.Run("sort round trip", func(t *testing.T) {
+		original := Sort("created_at", SortDesc).ThenBy("name", SortAsc).ThenBy("email", SortAsc).NullsLast()
+
+		formatted, err := Format(nil, WithSort(original))
+		if err != nil {
+			t.Fatalf("Format() error = %v", err)
+		}
+
+		query, err := ParseQuery(formatted, nil)
+		if err != nil {
+			t.Fatalf("ParseQuery() error = %v", err)
+		}
+
+		reformatted, err := Format(nil, WithSort(query.Sort))
+		if err != nil {
+			t.Fatalf("Format() second time error = %v", err)
+		}
+
+		if formatted != reformatted {
+			t.Errorf("Round trip failed: original = %v, after round trip = %v", formatted, reformatted)
+		}
+	})
+
+	t.Run("offset pagination round trip", func(t *testing.T) {
+		original := &OffsetPagination{Size: 20, Number: 2}
+
+		formatted, err := Format(nil, WithPagination(original))
+		if err != nil {
+			t.Fatalf("Format() error = %v", err)
+		}
+
+		query, err := ParseQuery(formatted, nil)
+		if err != nil {
+			t.Fatalf("ParseQuery() error = %v", err)
+		}
+
+		reformatted, err := Format(nil, WithPagination(query.Pagination))
+		if err != nil {
+			t.Fatalf("Format() second time error = %v", err)
+		}
+
+		if formatted != reformatted {
+			t.Errorf("Round trip failed: original = %v, after round trip = %v", formatted, reformatted)
+		}
+	})
+
+	t.Run("cursor pagination round trip", func(t *testing.T) {
+		original := &CursorPagination{Size: 20, Cursor: "token:123,abc"}
+
+		formatted, err := Format(nil, WithPagination(original))
+		if err != nil {
+			t.Fatalf("Format() error = %v", err)
+		}
+
+		query, err := ParseQuery(formatted, nil)
+		if err != nil {
+			t.Fatalf("ParseQuery() error = %v", err)
+		}
+
+		reformatted, err := Format(nil, WithPagination(query.Pagination))
+		if err != nil {
+			t.Fatalf("Format() second time error = %v", err)
+		}
+
+		if formatted != reformatted {
+			t.Errorf("Round trip failed: original = %v, after round trip = %v", formatted, reformatted)
+		}
+	})
+}
+
+// TestParseQuery tests parsing complete query strings
+func TestParseQuery(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+		check   func(*testing.T, *Query)
+	}{
+		{
+			name:  "filter only",
+			input: "filter(eq(status,active))",
+			check: func(t *testing.T, q *Query) {
+				if q.Filter == nil {
+					t.Error("Filter should not be nil")
+				}
+				if q.Sort != nil {
+					t.Error("Sort should be nil")
+				}
+				if q.Pagination != nil {
+					t.Error("Pagination should be nil")
+				}
+			},
+		},
+		{
+			name:  "sort only",
+			input: "sort(created_at:desc)",
+			check: func(t *testing.T, q *Query) {
+				if q.Filter != nil {
+					t.Error("Filter should be nil")
+				}
+				if q.Sort == nil {
+					t.Error("Sort should not be nil")
+				}
+				if q.Pagination != nil {
+					t.Error("Pagination should be nil")
+				}
+			},
+		},
+		{
+			name:  "pagination only",
+			input: "page(size:20,number:2)",
+			check: func(t *testing.T, q *Query) {
+				if q.Filter != nil {
+					t.Error("Filter should be nil")
+				}
+				if q.Sort != nil {
+					t.Error("Sort should be nil")
+				}
+				if q.Pagination == nil {
+					t.Error("Pagination should not be nil")
+				}
+			},
+		},
+		{
+			name:  "filter and sort",
+			input: "filter(eq(status,active)),sort(created_at:desc)",
+			check: func(t *testing.T, q *Query) {
+				if q.Filter == nil {
+					t.Error("Filter should not be nil")
+				}
+				if q.Sort == nil {
+					t.Error("Sort should not be nil")
+				}
+				if q.Pagination != nil {
+					t.Error("Pagination should be nil")
+				}
+			},
+		},
+		{
+			name:  "all three",
+			input: "filter(and(eq(status,active),gt(age,18))),sort(created_at:desc,name:asc),page(size:20,number:2)",
+			check: func(t *testing.T, q *Query) {
+				if q.Filter == nil {
+					t.Error("Filter should not be nil")
+				}
+				if q.Sort == nil {
+					t.Error("Sort should not be nil")
+				}
+				if q.Pagination == nil {
+					t.Error("Pagination should not be nil")
+				}
+
+				// Verify pagination details
+				offsetPage, ok := q.Pagination.(*OffsetPagination)
+				if !ok {
+					t.Errorf("Expected OffsetPagination, got %T", q.Pagination)
+				} else {
+					if offsetPage.Size != 20 {
+						t.Errorf("Size = %d, want 20", offsetPage.Size)
+					}
+					if offsetPage.Number != 2 {
+						t.Errorf("Number = %d, want 2", offsetPage.Number)
+					}
+				}
+			},
+		},
+		{
+			name:  "empty string",
+			input: "",
+			check: func(t *testing.T, q *Query) {
+				if q.Filter != nil || q.Sort != nil || q.Pagination != nil {
+					t.Error("All fields should be nil for empty input")
+				}
+			},
+		},
+		{
+			name:  "with spaces",
+			input: "filter(eq(status,active)) , sort(created_at:desc) , page(size:20,number:2)",
+			check: func(t *testing.T, q *Query) {
+				if q.Filter == nil || q.Sort == nil || q.Pagination == nil {
+					t.Error("All fields should be populated")
+				}
+			},
+		},
+		{
+			name:    "invalid filter",
+			input:   "filter(invalid)",
+			wantErr: true,
+		},
+		{
+			name:    "invalid sort",
+			input:   "sort(field:invalid)",
+			wantErr: true,
+		},
+		{
+			name:    "invalid pagination",
+			input:   "page(invalid)",
+			wantErr: true,
+		},
+		{
+			name:    "unknown expression type",
+			input:   "unknown(something)",
+			wantErr: true,
+		},
+		{
+			name:    "mismatched parentheses",
+			input:   "filter(eq(status,active)",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseQuery(tt.input, nil)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ParseQuery() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && tt.check != nil {
+				tt.check(t, got)
+			}
+		})
+	}
+}
+
+// TestParseQueryRoundTrip tests that Format and ParseQuery are inverses
+func TestParseQueryRoundTrip(t *testing.T) {
+	filter := &Condition{
+		Name:      "status",
+		Operation: OperationEQ,
+		Value:     "active",
+	}
+	sort := Sort("created_at", SortDesc).ThenBy("name", SortAsc)
+	page := Paginate().Size(20).Number(2)
+
+	// Format
+	formatted, err := Format(nil,
+		WithFilter(filter),
+		WithSort(sort),
+		WithPagination(page),
+	)
+	if err != nil {
+		t.Fatalf("Format() error = %v", err)
+	}
+
+	// Parse
+	parsed, err := ParseQuery(formatted, nil)
+	if err != nil {
+		t.Fatalf("ParseQuery() error = %v", err)
+	}
+
+	// Verify all components are present
+	if parsed.Filter == nil {
+		t.Error("Filter should not be nil")
+	}
+	if parsed.Sort == nil {
+		t.Error("Sort should not be nil")
+	}
+	if parsed.Pagination == nil {
+		t.Error("Pagination should not be nil")
+	}
+
+	// Format again
+	reformatted, err := Format(nil,
+		WithFilter(parsed.Filter),
+		WithSort(parsed.Sort),
+		WithPagination(parsed.Pagination),
+	)
+	if err != nil {
+		t.Fatalf("Format() second time error = %v", err)
+	}
+
+	// Should be identical
+	if formatted != reformatted {
+		t.Errorf("Round trip failed:\nOriginal:    %s\nReformatted: %s", formatted, reformatted)
 	}
 }

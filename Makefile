@@ -1,4 +1,4 @@
-.PHONY: help build test test-coverage lint fmt vet clean install-tools check publish-check tag-release list-tags delete-tag release-info changelog
+.PHONY: help build test test-coverage lint fmt vet clean install-tools check publish-check publish-prepare publish publish-restore publish-proxy tag-release list-tags delete-tag release-info changelog
 
 # Default target
 .DEFAULT_GOAL := help
@@ -143,15 +143,38 @@ publish-check: ## Check if packages are ready for publishing
 	@echo ""
 	@echo "Packages are ready for publishing"
 	@echo ""
-	@echo "To publish, create and push a git tag:"
-	@echo "  git tag v$(VERSION)"
-	@echo "  git push origin v$(VERSION)"
+	@echo "Next steps:"
+	@echo "  1. Run: make publish-prepare VERSION=x.y.z"
+	@echo "  2. Review and commit the go.mod changes"
+	@echo "  3. Create and push tags: make tag-release VERSION=x.y.z"
+
+publish-prepare: ## Prepare submodules for publishing (VERSION=x.y.z required)
+	@if [ -z "$(VERSION)" ] || [ "$(VERSION)" = "dev" ]; then \
+		echo "Error: VERSION is required. Usage: make publish-prepare VERSION=1.0.0"; \
+		exit 1; \
+	fi
+	@echo "Preparing submodules for release v$(VERSION)..."
 	@echo ""
-	@echo "For submodules, use module-specific tags:"
-	@echo "  git tag thru/dynamodb/v$(VERSION)"
-	@echo "  git tag thru/sql/v$(VERSION)"
-	@echo "  git tag thru/exprlang/v$(VERSION)"
-	@echo "  git tag thru/jsonapi/v$(VERSION)"
+	@echo "Updating submodule go.mod files..."
+	@for pkg in ./thru/dynamodb ./thru/sql ./thru/exprlang ./thru/jsonapi; do \
+		if [ -f "$$pkg/go.mod" ]; then \
+			echo "  Updating $$pkg/go.mod..."; \
+			sed -i.bak 's|require github.com/nisimpson/sift v.*|require github.com/nisimpson/sift v$(VERSION)|' $$pkg/go.mod; \
+			rm -f $$pkg/go.mod.bak; \
+			cd $$pkg && $(GOMOD) tidy && cd - > /dev/null || exit 1; \
+		fi; \
+	done
+	@echo ""
+	@echo "✅ Submodules prepared for release v$(VERSION)"
+	@echo ""
+	@echo "Changes made:"
+	@git diff --stat
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Review changes: git diff"
+	@echo "  2. Commit changes: git add . && git commit -m 'chore: prepare for v$(VERSION) release'"
+	@echo "  3. Create tags: make tag-release VERSION=$(VERSION)"
+	@echo "  4. Push: git push origin main --tags"
 
 tag-release: ## Create git tags for release (VERSION=x.y.z required, MODULE=path optional)
 	@if [ -z "$(VERSION)" ] || [ "$(VERSION)" = "dev" ]; then \
@@ -261,3 +284,118 @@ version: ## Display version information
 	@echo "Git commit: $$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
 	@echo "Git branch: $$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown')"
 	@echo "Go version: $$(go version)"
+
+publish: ## Publish a new release (VERSION=x.y.z required, MODULE=path optional)
+	@if [ -z "$(VERSION)" ] || [ "$(VERSION)" = "dev" ]; then \
+		echo "Error: VERSION is required. Usage: make publish VERSION=1.0.0"; \
+		echo ""; \
+		echo "Examples:"; \
+		echo "  make publish VERSION=1.0.0                    # Publish all modules"; \
+		echo "  make publish VERSION=1.0.0 MODULE=.           # Publish main module only"; \
+		echo "  make publish VERSION=1.0.1 MODULE=thru/sql    # Publish SQL adapter only"; \
+		exit 1; \
+	fi
+	@echo "Publishing release v$(VERSION)..."
+	@echo ""
+	@echo "Step 1: Running pre-publish checks..."
+	@$(MAKE) publish-check
+	@echo ""
+	@echo "Step 2: Preparing submodules..."
+	@$(MAKE) publish-prepare VERSION=$(VERSION)
+	@echo ""
+	@echo "Step 3: Committing version changes..."
+	@git add .
+	@git commit -m "chore: prepare for v$(VERSION) release"
+	@echo ""
+	@echo "Step 4: Creating git tags..."
+	@if [ -n "$(MODULE)" ]; then \
+		$(MAKE) tag-release VERSION=$(VERSION) MODULE=$(MODULE); \
+	else \
+		$(MAKE) tag-release VERSION=$(VERSION); \
+	fi
+	@echo ""
+	@echo "Step 5: Pushing to remote..."
+	@git push origin main
+	@git push origin --tags
+	@echo ""
+	@echo "✅ Release v$(VERSION) published successfully!"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Trigger Go proxy indexing: make publish-proxy VERSION=$(VERSION)"
+	@echo "  2. Verify on GitHub: https://github.com/nisimpson/sift/releases"
+	@echo "  3. Check pkg.go.dev (may take a few minutes to index)"
+	@echo "  4. Restore development versions: make publish-restore"
+
+publish-restore: ## Restore v0.0.0 versions for development
+	@echo "Restoring development versions..."
+	@echo ""
+	@for pkg in ./thru/dynamodb ./thru/sql ./thru/exprlang ./thru/jsonapi; do \
+		if [ -f "$$pkg/go.mod" ]; then \
+			echo "  Updating $$pkg/go.mod..."; \
+			sed -i.bak 's|require github.com/nisimpson/sift v.*|require github.com/nisimpson/sift v0.0.0|' $$pkg/go.mod; \
+			rm -f $$pkg/go.mod.bak; \
+			cd $$pkg && $(GOMOD) tidy && cd - > /dev/null || exit 1; \
+		fi; \
+	done
+	@echo ""
+	@echo "✅ Development versions restored"
+	@echo ""
+	@git add .
+	@git commit -m "chore: restore v0.0.0 for development"
+	@git push origin main
+	@echo ""
+	@echo "Ready for development!"
+
+publish-proxy: ## Trigger Go module proxy to index published modules (VERSION=x.y.z required, MODULE=path optional)
+	@if [ -z "$(VERSION)" ] || [ "$(VERSION)" = "dev" ]; then \
+		echo "Error: VERSION is required. Usage: make publish-proxy VERSION=1.0.0"; \
+		echo ""; \
+		echo "Examples:"; \
+		echo "  make publish-proxy VERSION=1.0.0                    # Index all modules"; \
+		echo "  make publish-proxy VERSION=1.0.0 MODULE=.           # Index main module only"; \
+		echo "  make publish-proxy VERSION=1.0.1 MODULE=thru/sql    # Index SQL adapter only"; \
+		exit 1; \
+	fi
+	@echo "Triggering Go module proxy to index modules..."
+	@echo ""
+	@if [ -n "$(MODULE)" ]; then \
+		if [ "$(MODULE)" = "." ]; then \
+			echo "Indexing main module v$(VERSION)..."; \
+			GOPROXY=proxy.golang.org go list -m github.com/nisimpson/sift@v$(VERSION) || true; \
+		else \
+			echo "Indexing $(MODULE) v$(VERSION)..."; \
+			GOPROXY=proxy.golang.org go list -m github.com/nisimpson/sift/$(MODULE)@v$(VERSION) || true; \
+		fi; \
+	else \
+		echo "Indexing main module v$(VERSION)..."; \
+		GOPROXY=proxy.golang.org go list -m github.com/nisimpson/sift@v$(VERSION) || true; \
+		echo ""; \
+		echo "Indexing thru/dynamodb v$(VERSION)..."; \
+		GOPROXY=proxy.golang.org go list -m github.com/nisimpson/sift/thru/dynamodb@v$(VERSION) || true; \
+		echo ""; \
+		echo "Indexing thru/sql v$(VERSION)..."; \
+		GOPROXY=proxy.golang.org go list -m github.com/nisimpson/sift/thru/sql@v$(VERSION) || true; \
+		echo ""; \
+		echo "Indexing thru/exprlang v$(VERSION)..."; \
+		GOPROXY=proxy.golang.org go list -m github.com/nisimpson/sift/thru/exprlang@v$(VERSION) || true; \
+		echo ""; \
+		echo "Indexing thru/jsonapi v$(VERSION)..."; \
+		GOPROXY=proxy.golang.org go list -m github.com/nisimpson/sift/thru/jsonapi@v$(VERSION) || true; \
+	fi
+	@echo ""
+	@echo "✅ Proxy indexing triggered"
+	@echo ""
+	@echo "Verify on pkg.go.dev (may take a few minutes):"
+	@if [ -n "$(MODULE)" ]; then \
+		if [ "$(MODULE)" = "." ]; then \
+			echo "  https://pkg.go.dev/github.com/nisimpson/sift@v$(VERSION)"; \
+		else \
+			echo "  https://pkg.go.dev/github.com/nisimpson/sift/$(MODULE)@v$(VERSION)"; \
+		fi; \
+	else \
+		echo "  https://pkg.go.dev/github.com/nisimpson/sift@v$(VERSION)"; \
+		echo "  https://pkg.go.dev/github.com/nisimpson/sift/thru/dynamodb@v$(VERSION)"; \
+		echo "  https://pkg.go.dev/github.com/nisimpson/sift/thru/sql@v$(VERSION)"; \
+		echo "  https://pkg.go.dev/github.com/nisimpson/sift/thru/exprlang@v$(VERSION)"; \
+		echo "  https://pkg.go.dev/github.com/nisimpson/sift/thru/jsonapi@v$(VERSION)"; \
+	fi

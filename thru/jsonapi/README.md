@@ -10,14 +10,14 @@ go get github.com/nisimpson/sift/thru/jsonapi
 
 ## API
 
-Two functions, that's it:
+Two main functions:
 
 ```go
-// Parse JSON:API query parameters to Sift expression
-func Parse(query url.Values) (sift.Expression, error)
+// Parse JSON:API query parameters to complete Query (filter, sort, pagination)
+func ParseQuery(query url.Values, registry *sift.Registry) (*sift.Query, error)
 
 // Format Sift expression to JSON:API query parameters
-func Format(expr sift.Expression) (url.Values, error)
+func Format(expr sift.Expression, registry *sift.Registry) (url.Values, error)
 ```
 
 ## Usage
@@ -32,17 +32,21 @@ import (
     "github.com/nisimpson/sift/thru/jsonapi"
 )
 
-// Parse from HTTP request
+// Parse complete query (filter, sort, pagination)
 query := r.URL.Query()
-filter, err := jsonapi.Parse(query)
+result, err := jsonapi.ParseQuery(query, registry)
 if err != nil {
-    http.Error(w, "Invalid filter", http.StatusBadRequest)
+    http.Error(w, "Invalid query", http.StatusBadRequest)
     return
 }
 
 // Use with any backend
 dynamoAdapter := dynamodb.NewAdapter()
-sift.Thru(ctx, dynamoAdapter, filter)
+sift.Thru(ctx, dynamoAdapter,
+    sift.WithFilter(result.Filter),
+    sift.WithSort(result.Sort),
+    sift.WithPagination(result.Pagination),
+)
 ```
 
 ### Format Sift to JSON:API
@@ -75,6 +79,7 @@ queryString := values.Encode()
 
 ## JSON:API Format
 
+### Filter
 ```
 ?filter[q]=and(p1,p2)&filter[p1]=eq(status,active)&filter[p2]=gt(age,18)
 ```
@@ -83,6 +88,29 @@ queryString := values.Encode()
 - `filter[p1]`, `filter[p2]` - Parameters for leaf conditions
 - All conditions extracted as parameters
 - Logical operations reference parameters
+
+### Sort
+```
+?sort[created_at]=desc&sort[name]=asc
+```
+
+- `sort[field]` - Field name with direction (asc or desc)
+- Multiple fields supported
+
+### Pagination
+```
+?page[size]=20&page[number]=2          // Offset-based
+?page[size]=20&page[cursor]=token123   // Cursor-based
+```
+
+- `page[size]` - Number of items per page (required)
+- `page[number]` - Page number for offset-based pagination
+- `page[cursor]` - Cursor token for cursor-based pagination
+
+### Complete Query
+```
+?filter[q]=and(p1,p2)&filter[p1]=eq(status,active)&filter[p2]=gt(age,18)&sort[created_at]=desc&sort[name]=asc&page[size]=20&page[number]=2
+```
 
 ## Examples
 
@@ -147,11 +175,11 @@ filter := &sift.AndOperation{
 }
 
 // Format to JSON:API
-values, _ := jsonapi.Format(filter)
+values, _ := jsonapi.Format(filter, registry)
 // filter[q]=and(p1,p2)&filter[p1]=eq(status,active)&filter[p2]=dynamodb_size(tags,gt,5)
 
 // Parse back
-parsed, _ := jsonapi.Parse(values)
+result, _ := jsonapi.ParseQuery(values, registry)
 // Works automatically if SizeFormatter is registered
 ```
 
@@ -163,15 +191,15 @@ Accept JSON:API filters in your HTTP handlers:
 
 ```go
 func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
-    // Parse JSON:API filters from query string
-    filter, err := jsonapi.Parse(r.URL.Query())
+    // Parse JSON:API query from query string
+    query, err := jsonapi.ParseQuery(r.URL.Query(), registry)
     if err != nil {
-        http.Error(w, "Invalid filter", http.StatusBadRequest)
+        http.Error(w, "Invalid query", http.StatusBadRequest)
         return
     }
     
     // Use with your backend (DynamoDB, SQL, etc.)
-    users, err := h.repo.Find(r.Context(), filter)
+    users, err := h.repo.Find(r.Context(), query.Filter)
     if err != nil {
         http.Error(w, "Query failed", http.StatusInternalServerError)
         return
@@ -193,7 +221,7 @@ filter := &sift.AndOperation{
 }
 
 // Convert to JSON:API query string
-values, _ := jsonapi.Format(filter)
+values, _ := jsonapi.Format(filter, registry)
 queryString := values.Encode()
 
 // Make HTTP request
@@ -211,13 +239,13 @@ type UserRepository struct {
 
 func (r *UserRepository) FindWithJSONAPI(ctx context.Context, queryParams url.Values) ([]*User, error) {
     // Parse JSON:API to Sift
-    filter, err := jsonapi.Parse(queryParams)
+    query, err := jsonapi.ParseQuery(queryParams, registry)
     if err != nil {
         return nil, err
     }
     
     // Evaluate with backend adapter
-    if err := sift.Thru(ctx, r.adapter, filter); err != nil {
+    if err := sift.Thru(ctx, r.adapter, sift.WithFilter(query.Filter)); err != nil {
         return nil, err
     }
     
@@ -255,7 +283,7 @@ Logical operations:
 The JSON:API marshaler is intentionally simple:
 
 - **Stateless**: No internal state, just pure functions
-- **Leverages Sift**: Uses `sift.Parse()` and `sift.Format()` for expression handling
+- **Leverages Sift**: Uses `sift.ParseQuery()` and `sift.Format()` for expression handling
 - **Parameter extraction**: Automatically extracts leaf conditions as parameters
 - **Custom expression support**: Works with any registered custom expressions
 

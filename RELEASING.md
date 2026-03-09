@@ -47,6 +47,24 @@ Release modules independently when:
 
 ### 1. Pre-Release Checklist
 
+**CRITICAL: Update Submodule Dependencies**
+
+Before releasing, you MUST update the submodule go.mod files to reference the actual version:
+
+```bash
+# Use the Makefile to automate this:
+make publish-prepare VERSION=1.0.0
+
+# This will update all submodule go.mod files from:
+#   require github.com/nisimpson/sift v0.0.0
+# To:
+#   require github.com/nisimpson/sift v1.0.0
+```
+
+**Note:** We use Go workspaces (go.work) for local development, so replace directives are not needed. The submodules reference `v0.0.0` during development, which is resolved by the workspace. Before publishing, this must be updated to the actual release version.
+
+**Standard Pre-Release Checks:**
+
 ```bash
 # Ensure working directory is clean
 git status

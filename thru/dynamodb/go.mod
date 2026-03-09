@@ -6,7 +6,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.32.7
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/expression v1.7.57
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.38.1
-	github.com/nisimpson/sift v0.0.0
+	github.com/nisimpson/sift v0.1.0
 )
 
 require (
@@ -19,5 +19,3 @@ require (
 	github.com/aws/smithy-go v1.22.1 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 )
-
-replace github.com/nisimpson/sift => ../..

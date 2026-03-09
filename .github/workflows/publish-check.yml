@@ -32,13 +32,13 @@ jobs:
           cd "$dir"
           go mod tidy
           if [ -n "$(git status --porcelain go.mod go.sum)" ]; then
-            echo "❌ $dir/go.mod is not tidy"
+            echo "Error: $dir/go.mod is not tidy"
             git diff go.mod go.sum
             exit 1
           fi
           cd - > /dev/null
         done
-        echo "✅ All go.mod files are tidy"
+        echo "All go.mod files are tidy"
 
     - name: Check for breaking changes
       run: |
@@ -52,7 +52,7 @@ jobs:
       with:
         script: |
           const status = '${{ job.status }}';
-          const emoji = status === 'success' ? '✅' : '❌';
+          const prefix = status === 'success' ? '[PASS]' : '[FAIL]';
           const message = status === 'success' 
             ? 'All publish checks passed! This PR is ready to merge and release.'
             : 'Some publish checks failed. Please review the logs.';
@@ -61,5 +61,5 @@ jobs:
             issue_number: context.issue.number,
             owner: context.repo.owner,
             repo: context.repo.repo,
-            body: `${emoji} **Publish Check ${status}**\n\n${message}`
+            body: `${prefix} **Publish Check ${status}**\n\n${message}`
           });

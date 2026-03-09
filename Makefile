@@ -1,4 +1,4 @@
-.PHONY: help build test test-coverage lint fmt vet clean install-tools check publish-check tag-release list-tags delete-tag
+.PHONY: help build test test-coverage lint fmt vet clean install-tools check publish-check tag-release list-tags delete-tag release-info changelog
 
 # Default target
 .DEFAULT_GOAL := help
@@ -220,6 +220,21 @@ delete-tag: ## Delete a tag (TAG=v1.0.0 or TAG=thru/sql/v1.0.0 required)
 	@echo ""
 	@echo "To delete from remote:"
 	@echo "  git push origin :refs/tags/$(TAG)"
+
+release-info: ## Show release info for a tag (TAG=v1.0.0 required)
+	@if [ -z "$(TAG)" ]; then \
+		echo "✗ TAG is required. Usage: make release-info TAG=v1.0.0"; \
+		exit 1; \
+	fi
+	@./scripts/release-info.sh "$(TAG)"
+
+changelog: ## Generate changelog for a tag (TAG=v1.0.0 required)
+	@if [ -z "$(TAG)" ]; then \
+		echo "✗ TAG is required. Usage: make changelog TAG=v1.0.0"; \
+		exit 1; \
+	fi
+	@MODULE_PATH=$$(./scripts/release-info.sh "$(TAG)" | grep MODULE_PATH | cut -d= -f2); \
+	./scripts/generate-changelog.sh "$(TAG)" "$$MODULE_PATH"
 
 bench: ## Run benchmarks
 	@echo "Running benchmarks..."

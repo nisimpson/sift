@@ -24,17 +24,21 @@ This directory contains GitHub Actions workflows for automated testing, linting,
 
 **Jobs**:
 - **Release**: Creates GitHub releases automatically
-  - Detects module (main or submodule) from tag format
-  - Generates changelog from git commits
+  - Extracts module and version info using `scripts/release-info.sh`
+  - Runs tests to verify the release
+  - Generates changelog using `scripts/generate-changelog.sh`
   - Creates release with installation instructions
   - Links to pkg.go.dev documentation
-- **Notify**: Sends success notification
 
 **Tag Formats**:
 - Main module: `v1.0.0`
 - Submodules: `thru/sql/v1.0.1`, `thru/dynamodb/v1.2.0`
 
 **Purpose**: Automates release creation when tags are pushed
+
+**Scripts Used**:
+- `scripts/release-info.sh` - Parses tag format and extracts metadata
+- `scripts/generate-changelog.sh` - Generates changelog from git commits
 
 ### Nightly (`nightly.yml`)
 
@@ -160,13 +164,25 @@ schedule:
 
 ### Customizing Release Notes
 
-Edit `release.yml` changelog generation:
+The release workflow uses scripts for flexibility:
 
-```yaml
-- name: Generate changelog
-  run: |
-    # Customize git log format
-    git log --pretty=format:"- %s (%h)" "$PREV_TAG..$TAG"
+```bash
+# Test release info extraction locally
+make release-info TAG=v1.0.0
+
+# Test changelog generation locally
+make changelog TAG=v1.0.0
+```
+
+To customize changelog format, edit `scripts/generate-changelog.sh`:
+
+```bash
+# Current format: "- commit message (hash)"
+git log --pretty=format:"- %s (%h)" "$PREV_TAG..$TAG"
+
+# Alternative formats:
+# With author: git log --pretty=format:"- %s by %an (%h)"
+# With date: git log --pretty=format:"- %s (%h, %ad)" --date=short
 ```
 
 ### Adding Slack/Discord Notifications

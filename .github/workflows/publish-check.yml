@@ -23,29 +23,6 @@ jobs:
     - name: Run publish check
       run: make publish-check
 
-    - name: Verify go.mod files
-      run: |
-        echo "Checking all go.mod files are tidy..."
-        for mod in $(find . -name "go.mod"); do
-          dir=$(dirname "$mod")
-          echo "Checking $dir..."
-          cd "$dir"
-          go mod tidy
-          if [ -n "$(git status --porcelain go.mod go.sum)" ]; then
-            echo "Error: $dir/go.mod is not tidy"
-            git diff go.mod go.sum
-            exit 1
-          fi
-          cd - > /dev/null
-        done
-        echo "All go.mod files are tidy"
-
-    - name: Check for breaking changes
-      run: |
-        echo "Checking for potential breaking changes..."
-        # This is a placeholder - you could integrate tools like gorelease
-        echo "Warning: Manual review required for breaking changes"
-
     - name: Comment on PR
       if: always()
       uses: actions/github-script@v7

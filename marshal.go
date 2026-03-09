@@ -107,7 +107,7 @@ func formatCustom(n CustomExpression, registry *Registry) (string, error) {
 	if registry == nil {
 		return "", fmt.Errorf("no registry provided for custom expression type: %s", n.Type())
 	}
-	
+
 	key := n.Type()
 	formatter, ok := registry.formatters[key]
 	if !ok {
@@ -250,7 +250,7 @@ func (p *Parser) parseCustom(fn string) (Expression, error) {
 	if p.registry == nil {
 		return nil, fmt.Errorf("unknown function: %s (no registry provided)", fn)
 	}
-	
+
 	formatter, ok := p.registry.formatters[fn]
 	if !ok {
 		return nil, fmt.Errorf("unknown function: %s", fn)

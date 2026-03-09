@@ -512,9 +512,9 @@ func TestConditionConvenienceMethods(t *testing.T) {
 	t.Run("Condition.And", func(t *testing.T) {
 		left := Condition{Name: "a", Operation: OperationEQ, Value: "1"}
 		right := &Condition{Name: "b", Operation: OperationEQ, Value: "2"}
-		
+
 		result := left.And(right)
-		
+
 		and, ok := result.expr.(*AndOperation)
 		if !ok {
 			t.Fatalf("Expected AndOperation, got %T", result.expr)
@@ -527,9 +527,9 @@ func TestConditionConvenienceMethods(t *testing.T) {
 	t.Run("Condition.Or", func(t *testing.T) {
 		left := Condition{Name: "a", Operation: OperationEQ, Value: "1"}
 		right := &Condition{Name: "b", Operation: OperationEQ, Value: "2"}
-		
+
 		result := left.Or(right)
-		
+
 		or, ok := result.expr.(*OrOperation)
 		if !ok {
 			t.Fatalf("Expected OrOperation, got %T", result.expr)
@@ -541,14 +541,14 @@ func TestConditionConvenienceMethods(t *testing.T) {
 
 	t.Run("Condition.Not", func(t *testing.T) {
 		cond := Condition{Name: "deleted", Operation: OperationEQ, Value: "true"}
-		
+
 		result := cond.Not()
-		
+
 		not, ok := result.expr.(*NotOperation)
 		if !ok {
 			t.Fatalf("Expected NotOperation, got %T", result.expr)
 		}
-		
+
 		// Child should be a builder wrapping the condition
 		_, ok = not.Child.(ExpressionBuilder)
 		if !ok {

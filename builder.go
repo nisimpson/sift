@@ -85,9 +85,9 @@ func In[T comparable](field string, val T) ExpressionBuilder {
 }
 
 // Between creates a new ExpressionBuilder for range checking.
-// The resulting expression will be true if the field value is between min and max (inclusive).
-func Between[T comparable](field string, min, max T) ExpressionBuilder {
-	return buildFromCondition(field, OperationBetween, fmt.Sprintf("%v,%v", min, max))
+// The resulting expression will be true if the field value is between minVal and maxVal (inclusive).
+func Between[T comparable](field string, minVal, maxVal T) ExpressionBuilder {
+	return buildFromCondition(field, OperationBetween, fmt.Sprintf("%v,%v", minVal, maxVal))
 }
 
 // Exists creates a new ExpressionBuilder that checks if a field exists.
@@ -182,9 +182,7 @@ func (b SortBuilder) accept(ctx context.Context, evaluator *Evaluator) error {
 
 // PaginationBuilder provides a fluent interface for constructing pagination expressions.
 type PaginationBuilder struct {
-	size   int
-	number *int
-	cursor *string
+	size int
 }
 
 // Paginate creates a new PaginationBuilder.

@@ -278,7 +278,7 @@ func TestExpressionBuilderString(t *testing.T) {
 	t.Run("simple condition", func(t *testing.T) {
 		cond := &Condition{Name: "status", Operation: OperationEQ, Value: "active"}
 		builder := NewExpressionBuilder(cond)
-		
+
 		str := builder.String()
 		expected := "eq(status,active)"
 		if str != expected {
@@ -290,7 +290,7 @@ func TestExpressionBuilderString(t *testing.T) {
 		a := &Condition{Name: "a", Operation: OperationEQ, Value: "1"}
 		b := &Condition{Name: "b", Operation: OperationEQ, Value: "2"}
 		builder := NewExpressionBuilder(a).And(b)
-		
+
 		str := builder.String()
 		expected := "and(eq(a,1),eq(b,2))"
 		if str != expected {
@@ -303,7 +303,7 @@ func TestExpressionBuilderString(t *testing.T) {
 		b := &Condition{Name: "b", Operation: OperationEQ, Value: "2"}
 		c := &Condition{Name: "c", Operation: OperationEQ, Value: "3"}
 		builder := NewExpressionBuilder(a).And(b).Or(c)
-		
+
 		str := builder.String()
 		expected := "or(and(eq(a,1),eq(b,2)),eq(c,3))"
 		if str != expected {
@@ -440,7 +440,7 @@ func TestBuilderConvenienceFunctions(t *testing.T) {
 func TestBuilderConvenienceFunctionsChaining(t *testing.T) {
 	t.Run("Eq().And()", func(t *testing.T) {
 		builder := Eq("status", "active").And(Gt("age", 18))
-		
+
 		and, ok := builder.expr.(*AndOperation)
 		if !ok {
 			t.Fatalf("Expected AndOperation, got %T", builder.expr)

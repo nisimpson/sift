@@ -99,14 +99,14 @@ func Thru(ctx context.Context, adapter Adapter, options ...Option) error {
 	if adapter == nil {
 		return fmt.Errorf("adapter is nil")
 	}
-	
+
 	evaluator := adapter.Evaluator(ctx)
 	for _, opt := range options {
 		if err := opt.apply(ctx, evaluator); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -119,6 +119,7 @@ type Expression interface {
 // Operation defines the type of comparison or logical operation.
 type Operation string
 
+// Operation constants define the supported comparison and existence operations.
 const (
 	OperationEQ         Operation = "eq"          // equal
 	OperationNEQ        Operation = "ne"          // not equal
@@ -165,27 +166,27 @@ type Condition struct {
 
 // And creates a logical AND operation between this condition and another expression.
 // Returns a Builder that can be used to chain additional operations.
-func (e *Condition) And(expr Expression) ExpressionBuilder {
-	return NewExpressionBuilder(e).And(expr)
+func (c *Condition) And(expr Expression) ExpressionBuilder {
+	return NewExpressionBuilder(c).And(expr)
 }
 
 // Or creates a logical OR operation between this condition and another expression.
 // Returns a Builder that can be used to chain additional operations.
-func (e *Condition) Or(expr Expression) ExpressionBuilder {
-	return NewExpressionBuilder(e).Or(expr)
+func (c *Condition) Or(expr Expression) ExpressionBuilder {
+	return NewExpressionBuilder(c).Or(expr)
 }
 
 // Not creates a logical NOT operation, negating this condition.
 // Returns an ExpressionBuilder that can be used to chain additional operations.
-func (e *Condition) Not() ExpressionBuilder {
-	return NewExpressionBuilder(e).Not()
+func (c *Condition) Not() ExpressionBuilder {
+	return NewExpressionBuilder(c).Not()
 }
 
-func (e *Condition) accept(ctx context.Context, eval *Evaluator) error {
+func (c *Condition) accept(ctx context.Context, eval *Evaluator) error {
 	if eval.ConditionEvaluator == nil {
-		return ErrorNodeNotSupported(e)
+		return ErrorNodeNotSupported(c)
 	}
-	return eval.EvaluateCondition(ctx, e)
+	return eval.EvaluateCondition(ctx, c)
 }
 
 // String returns the string representation of the condition in the format "operation(name,value)".

@@ -603,7 +603,7 @@ func TestCustomExpressionErrors(t *testing.T) {
 	t.Run("custom formatter format error", func(t *testing.T) {
 		registry := NewRegistry()
 		registry.Register("error_custom", errorFormatter{})
-		
+
 		custom := &errorCustom{}
 		expr := NewCustomExpression(custom)
 

@@ -49,22 +49,19 @@ Release modules independently when:
 
 **CRITICAL: Update Submodule Dependencies**
 
-Before releasing, you MUST update the submodule go.mod files to reference the actual version instead of using `replace` directives:
+Before releasing, you MUST update the submodule go.mod files to reference the actual version:
 
 ```bash
-# For each submodule (thru/dynamodb, thru/sql, thru/exprlang, thru/jsonapi):
-# 1. Remove the replace directive
-# 2. Update the require version to match the release version
+# Use the Makefile to automate this:
+make publish-prepare VERSION=1.0.0
 
-# Example for v1.0.0 release:
-# In thru/sql/go.mod, change:
+# This will update all submodule go.mod files from:
 #   require github.com/nisimpson/sift v0.0.0
-#   replace github.com/nisimpson/sift => ../..
 # To:
 #   require github.com/nisimpson/sift v1.0.0
 ```
 
-**Note:** The `replace` directives are used during development to reference the local main module. They must be removed before publishing or users won't be able to install the modules.
+**Note:** We use Go workspaces (go.work) for local development, so replace directives are not needed. The submodules reference `v0.0.0` during development, which is resolved by the workspace. Before publishing, this must be updated to the actual release version.
 
 **Standard Pre-Release Checks:**
 

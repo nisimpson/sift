@@ -1,4 +1,4 @@
-.PHONY: help build test test-coverage lint fmt vet clean install-tools check publish-check tag-release list-tags delete-tag release-info changelog
+.PHONY: help build test test-coverage lint fmt vet clean install-tools check publish-check publish-prepare tag-release list-tags delete-tag release-info changelog
 
 # Default target
 .DEFAULT_GOAL := help
@@ -143,15 +143,38 @@ publish-check: ## Check if packages are ready for publishing
 	@echo ""
 	@echo "Packages are ready for publishing"
 	@echo ""
-	@echo "To publish, create and push a git tag:"
-	@echo "  git tag v$(VERSION)"
-	@echo "  git push origin v$(VERSION)"
+	@echo "Next steps:"
+	@echo "  1. Run: make publish-prepare VERSION=x.y.z"
+	@echo "  2. Review and commit the go.mod changes"
+	@echo "  3. Create and push tags: make tag-release VERSION=x.y.z"
+
+publish-prepare: ## Prepare submodules for publishing (VERSION=x.y.z required)
+	@if [ -z "$(VERSION)" ] || [ "$(VERSION)" = "dev" ]; then \
+		echo "Error: VERSION is required. Usage: make publish-prepare VERSION=1.0.0"; \
+		exit 1; \
+	fi
+	@echo "Preparing submodules for release v$(VERSION)..."
 	@echo ""
-	@echo "For submodules, use module-specific tags:"
-	@echo "  git tag thru/dynamodb/v$(VERSION)"
-	@echo "  git tag thru/sql/v$(VERSION)"
-	@echo "  git tag thru/exprlang/v$(VERSION)"
-	@echo "  git tag thru/jsonapi/v$(VERSION)"
+	@echo "Updating submodule go.mod files..."
+	@for pkg in ./thru/dynamodb ./thru/sql ./thru/exprlang ./thru/jsonapi; do \
+		if [ -f "$$pkg/go.mod" ]; then \
+			echo "  Updating $$pkg/go.mod..."; \
+			sed -i.bak 's|require github.com/nisimpson/sift v.*|require github.com/nisimpson/sift v$(VERSION)|' $$pkg/go.mod; \
+			rm -f $$pkg/go.mod.bak; \
+			cd $$pkg && $(GOMOD) tidy && cd - > /dev/null || exit 1; \
+		fi; \
+	done
+	@echo ""
+	@echo "✅ Submodules prepared for release v$(VERSION)"
+	@echo ""
+	@echo "Changes made:"
+	@git diff --stat
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Review changes: git diff"
+	@echo "  2. Commit changes: git add . && git commit -m 'chore: prepare for v$(VERSION) release'"
+	@echo "  3. Create tags: make tag-release VERSION=$(VERSION)"
+	@echo "  4. Push: git push origin main --tags"
 
 tag-release: ## Create git tags for release (VERSION=x.y.z required, MODULE=path optional)
 	@if [ -z "$(VERSION)" ] || [ "$(VERSION)" = "dev" ]; then \

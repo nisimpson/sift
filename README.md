@@ -4,6 +4,7 @@ A universal query library for Go that lets you write filter, sort, and paginatio
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/nisimpson/sift.svg)](https://pkg.go.dev/github.com/nisimpson/sift)
 [![Go Report Card](https://goreportcard.com/badge/github.com/nisimpson/sift)](https://goreportcard.com/report/github.com/nisimpson/sift)
+[![CI](https://github.com/nisimpson/sift/workflows/CI/badge.svg)](https://github.com/nisimpson/sift/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## The Problem
@@ -707,6 +708,65 @@ func TestUserFiltering(t *testing.T) {
 ## Contributing
 
 Contributions welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+
+### Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/nisimpson/sift.git
+cd sift
+
+# Install development tools
+make install-tools
+
+# Run tests
+make test
+
+# Run all checks (formatting, linting, tests)
+make check
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+make test
+
+# Run tests with coverage
+make test-coverage
+
+# Run tests without race detector (faster)
+make test-short
+
+# Run benchmarks
+make bench
+```
+
+### Code Quality
+
+```bash
+# Format code
+make fmt
+
+# Run linter
+make lint
+
+# Run go vet
+make vet
+
+# Run all checks
+make check
+```
+
+### Continuous Integration
+
+All pull requests are automatically tested with:
+- Multiple Go versions (1.21, 1.22, 1.23)
+- Race detector
+- golangci-lint
+- Formatting checks
+
+See [.github/workflows/README.md](.github/workflows/README.md) for details.
 
 ## License
 

@@ -44,7 +44,7 @@ jobs:
       run: |
         echo "Checking for potential breaking changes..."
         # This is a placeholder - you could integrate tools like gorelease
-        echo "⚠️  Manual review required for breaking changes"
+        echo "Warning: Manual review required for breaking changes"
 
     - name: Comment on PR
       if: always()

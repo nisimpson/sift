@@ -33,54 +33,54 @@ build: ## Build all packages
 		echo "  Building $$pkg..."; \
 		cd $$pkg && $(GOBUILD) -v ./... && cd - > /dev/null || exit 1; \
 	done
-	@echo "✓ Build complete"
+	@echo "Build complete"
 
 test: ## Run tests for all packages
 	@echo "Running tests..."
 	$(GOTEST) -v -race -timeout 30s ./...
-	@echo "✓ Tests passed"
+	@echo "Tests passed"
 
 test-coverage: ## Run tests with coverage report
 	@echo "Running tests with coverage..."
 	@mkdir -p coverage
 	$(GOTEST) -v -race -coverprofile=coverage/coverage.out -covermode=atomic ./...
 	$(GOCMD) tool cover -html=coverage/coverage.out -o coverage/coverage.html
-	@echo "✓ Coverage report generated: coverage/coverage.html"
+	@echo "Coverage report generated: coverage/coverage.html"
 	@$(GOCMD) tool cover -func=coverage/coverage.out | grep total | awk '{print "  Total coverage: " $$3}'
 
 test-short: ## Run tests without race detector (faster)
 	@echo "Running tests (short mode)..."
 	$(GOTEST) -v -short ./...
-	@echo "✓ Tests passed"
+	@echo "Tests passed"
 
 lint: install-tools ## Run linters
 	@echo "Running linters..."
 	@if command -v golangci-lint > /dev/null; then \
 		golangci-lint run ./...; \
-		echo "✓ Linting complete"; \
+		echo "Linting complete"; \
 	else \
-		echo "⚠ golangci-lint not found. Install with: make install-tools"; \
+		echo "Warning: golangci-lint not found. Install with: make install-tools"; \
 		exit 1; \
 	fi
 
 fmt: ## Format code
 	@echo "Formatting code..."
 	$(GOFMT) ./...
-	@echo "✓ Code formatted"
+	@echo "Code formatted"
 
 vet: ## Run go vet
 	@echo "Running go vet..."
 	$(GOVET) ./...
-	@echo "✓ Vet complete"
+	@echo "Vet complete"
 
 check: fmt vet lint test ## Run all checks (fmt, vet, lint, test)
-	@echo "✓ All checks passed"
+	@echo "All checks passed"
 
 clean: ## Clean build artifacts and caches
 	@echo "Cleaning..."
 	@rm -rf coverage/
 	@$(GOCMD) clean -cache -testcache -modcache
-	@echo "✓ Clean complete"
+	@echo "Clean complete"
 
 tidy: ## Tidy and verify go.mod files
 	@echo "Tidying go.mod files..."
@@ -90,7 +90,7 @@ tidy: ## Tidy and verify go.mod files
 			cd $$pkg && $(GOMOD) tidy && cd - > /dev/null || exit 1; \
 		fi; \
 	done
-	@echo "✓ Tidy complete"
+	@echo "Tidy complete"
 
 verify: tidy ## Verify dependencies
 	@echo "Verifying dependencies..."
@@ -100,7 +100,7 @@ verify: tidy ## Verify dependencies
 			cd $$pkg && $(GOMOD) verify && cd - > /dev/null || exit 1; \
 		fi; \
 	done
-	@echo "✓ Verification complete"
+	@echo "Verification complete"
 
 install-tools: ## Install development tools
 	@echo "Installing development tools..."
@@ -110,7 +110,7 @@ install-tools: ## Install development tools
 	else \
 		echo "  golangci-lint already installed"; \
 	fi
-	@echo "✓ Tools installed"
+	@echo "Tools installed"
 
 publish-check: ## Check if packages are ready for publishing
 	@echo "Checking packages for publishing..."
@@ -119,10 +119,10 @@ publish-check: ## Check if packages are ready for publishing
 	@echo ""
 	@echo "Checking git status..."
 	@if [ -n "$$(git status --porcelain)" ]; then \
-		echo "✗ Working directory is not clean. Commit or stash changes."; \
+		echo "Error: Working directory is not clean. Commit or stash changes."; \
 		exit 1; \
 	else \
-		echo "✓ Working directory is clean"; \
+		echo "Working directory is clean"; \
 	fi
 	@echo ""
 	@echo "Running tests..."
@@ -134,14 +134,14 @@ publish-check: ## Check if packages are ready for publishing
 			echo "  Checking $$pkg/go.mod..."; \
 			cd $$pkg && $(GOMOD) tidy && cd - > /dev/null || exit 1; \
 			if [ -n "$$(git diff $$pkg/go.mod)" ]; then \
-				echo "✗ $$pkg/go.mod needs tidying"; \
+				echo "Error: $$pkg/go.mod needs tidying"; \
 				exit 1; \
 			fi; \
 		fi; \
 	done
-	@echo "✓ All go.mod files are tidy"
+	@echo "All go.mod files are tidy"
 	@echo ""
-	@echo "✓ Packages are ready for publishing"
+	@echo "Packages are ready for publishing"
 	@echo ""
 	@echo "To publish, create and push a git tag:"
 	@echo "  git tag v$(VERSION)"
@@ -155,7 +155,7 @@ publish-check: ## Check if packages are ready for publishing
 
 tag-release: ## Create git tags for release (VERSION=x.y.z required, MODULE=path optional)
 	@if [ -z "$(VERSION)" ] || [ "$(VERSION)" = "dev" ]; then \
-		echo "✗ VERSION is required. Usage: make tag-release VERSION=1.0.0"; \
+		echo "Error: VERSION is required. Usage: make tag-release VERSION=1.0.0"; \
 		echo ""; \
 		echo "Examples:"; \
 		echo "  make tag-release VERSION=1.0.0                    # Tag all modules"; \
@@ -167,11 +167,11 @@ tag-release: ## Create git tags for release (VERSION=x.y.z required, MODULE=path
 		if [ "$(MODULE)" = "." ]; then \
 			echo "Creating tag for main module..."; \
 			git tag -a "v$(VERSION)" -m "Release v$(VERSION)"; \
-			echo "✓ Created tag: v$(VERSION)"; \
+			echo "Created tag: v$(VERSION)"; \
 		else \
 			echo "Creating tag for $(MODULE)..."; \
 			git tag -a "$(MODULE)/v$(VERSION)" -m "Release $(MODULE) v$(VERSION)"; \
-			echo "✓ Created tag: $(MODULE)/v$(VERSION)"; \
+			echo "Created tag: $(MODULE)/v$(VERSION)"; \
 		fi; \
 	else \
 		echo "Creating release tags for ALL modules (version $(VERSION))..."; \
@@ -190,7 +190,7 @@ tag-release: ## Create git tags for release (VERSION=x.y.z required, MODULE=path
 		git tag -a "thru/jsonapi/v$(VERSION)" -m "Release thru/jsonapi v$(VERSION)"; \
 		echo "  Created tag: thru/jsonapi/v$(VERSION)"; \
 		echo ""; \
-		echo "✓ All tags created successfully"; \
+		echo "All tags created successfully"; \
 	fi
 	@echo ""
 	@echo "To push tags to remote:"
@@ -211,26 +211,26 @@ list-tags: ## List all version tags
 
 delete-tag: ## Delete a tag (TAG=v1.0.0 or TAG=thru/sql/v1.0.0 required)
 	@if [ -z "$(TAG)" ]; then \
-		echo "✗ TAG is required. Usage: make delete-tag TAG=v1.0.0"; \
+		echo "Error: TAG is required. Usage: make delete-tag TAG=v1.0.0"; \
 		exit 1; \
 	fi
 	@echo "Deleting tag: $(TAG)"
 	@git tag -d "$(TAG)"
-	@echo "✓ Local tag deleted"
+	@echo "Local tag deleted"
 	@echo ""
 	@echo "To delete from remote:"
 	@echo "  git push origin :refs/tags/$(TAG)"
 
 release-info: ## Show release info for a tag (TAG=v1.0.0 required)
 	@if [ -z "$(TAG)" ]; then \
-		echo "✗ TAG is required. Usage: make release-info TAG=v1.0.0"; \
+		echo "Error: TAG is required. Usage: make release-info TAG=v1.0.0"; \
 		exit 1; \
 	fi
 	@./scripts/release-info.sh "$(TAG)"
 
 changelog: ## Generate changelog for a tag (TAG=v1.0.0 required)
 	@if [ -z "$(TAG)" ]; then \
-		echo "✗ TAG is required. Usage: make changelog TAG=v1.0.0"; \
+		echo "Error: TAG is required. Usage: make changelog TAG=v1.0.0"; \
 		exit 1; \
 	fi
 	@MODULE_PATH=$$(./scripts/release-info.sh "$(TAG)" | grep MODULE_PATH | cut -d= -f2); \
@@ -248,7 +248,7 @@ deps: ## Download dependencies
 			cd $$pkg && $(GOMOD) download && cd - > /dev/null || exit 1; \
 		fi; \
 	done
-	@echo "✓ Dependencies downloaded"
+	@echo "Dependencies downloaded"
 
 list-packages: ## List all packages
 	@echo "Packages:"

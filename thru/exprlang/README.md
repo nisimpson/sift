@@ -90,6 +90,84 @@ fmt.Println(adapter.Expression())
 // Output: ((Status == "active") && (Age >= 18)) || (Role == "admin")
 ```
 
+## Parsing Expr-Lang Strings
+
+The `Parse` function converts an expr-lang expression string into a `sift.Expression` AST — the reverse of the `Adapter` above. This is useful for accepting filter expressions from query parameters (e.g. `?filter=status == "active" && age > 18`) and converting them into sift nodes for any backend adapter.
+
+```go
+func Parse(input string, opts ...ParseOption) (sift.Expression, error)
+```
+
+### Basic Parsing Example
+
+```go
+import "github.com/nisimpson/sift/thru/exprlang"
+
+// Parse an expr-lang string into a sift.Expression
+expr, err := exprlang.Parse(`status == "active" && age > 18`)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Use the resulting sift.Expression with any backend adapter
+adapter := dynamodb.NewAdapter()
+sift.Thru(ctx, adapter, sift.WithFilter(expr))
+```
+
+### Supported Constructs
+
+```go
+// Comparison operators
+exprlang.Parse(`status == "active"`)   // sift.Condition{OperationEQ}
+exprlang.Parse(`age != 30`)            // sift.Condition{OperationNEQ}
+exprlang.Parse(`price < 100`)          // sift.Condition{OperationLT}
+exprlang.Parse(`rating >= 4.5`)        // sift.Condition{OperationGTE}
+
+// Logical operators
+exprlang.Parse(`a == 1 && b == 2`)     // sift.AndOperation
+exprlang.Parse(`a == 1 || b == 2`)     // sift.OrOperation
+exprlang.Parse(`!(status == "deleted")`) // sift.NotOperation
+
+// String operators
+exprlang.Parse(`name contains "foo"`)      // sift.Condition{OperationContains}
+exprlang.Parse(`name startsWith "bar"`)    // sift.Condition{OperationBeginsWith}
+
+// Membership
+exprlang.Parse(`"admin" in roles`)     // sift.Condition{OperationIn}
+
+// Between (detected from range pattern)
+exprlang.Parse(`age >= 18 and age <= 65`) // sift.Condition{OperationBetween, Value: "18,65"}
+
+// Nil checks
+exprlang.Parse(`field != nil`)         // sift.Condition{OperationExists}
+exprlang.Parse(`field == nil`)         // sift.Condition{OperationNotExists}
+```
+
+### Strict Mode vs Lenient Mode
+
+By default, the parser operates in **strict mode**: any expr-lang construct without a sift equivalent returns a descriptive error.
+
+```go
+// Strict mode (default) — returns an error for unsupported constructs
+_, err := exprlang.Parse(`len(items) > 5`)
+// err: "exprlang: unsupported construct: ..."
+```
+
+Use `WithLenientMode()` to wrap unsupported constructs as `RawExpression` nodes instead of failing. This is useful when the downstream can handle raw expr-lang (e.g. in-memory evaluation).
+
+```go
+// Lenient mode — wraps unsupported constructs as RawExpression
+expr, err := exprlang.Parse(`status == "active" && len(items) > 5`, exprlang.WithLenientMode())
+// err == nil
+// expr is an AndOperation where:
+//   Left  = sift.Condition{Name: "status", Operation: OperationEQ, Value: "active"}
+//   Right = exprlang.RawExpression wrapping "len(items) > 5"
+```
+
+### Future Considerations
+
+A **custom function registry** is planned as a follow-up. This would allow consumers to register handlers that map specific expr-lang constructs (e.g. `endsWith`, custom functions) to structured sift nodes at parse time, rather than relying on `RawExpression` wrapping from lenient mode.
+
 ## Supported Operations
 
 ### Comparison Operations
